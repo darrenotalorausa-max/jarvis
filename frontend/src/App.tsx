@@ -42,16 +42,16 @@ export function App() {
     <div className={`shell${command ? " shell--command" : ""}`}>
       <header className="top">
         <a className="brand" href="#/comando" style={{ textDecoration: "none" }}>
-          <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="#5fd7ff" strokeWidth="1.6" /><circle cx="16" cy="16" r="6.5" fill="none" stroke="#5fd7ff" strokeWidth="1" strokeDasharray="3 2.4" /><circle cx="16" cy="16" r="2.6" fill="#c4ecff" /></svg>
-          JARVIS OS
+          <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="11" fill="none" stroke="var(--accent)" strokeWidth="1.5" strokeDasharray="46 23" strokeLinecap="round" /><circle cx="16" cy="16" r="3" fill="var(--accent-ink)" /></svg>
+          Jarvis OS
         </a>
         <div className="seg" role="group" aria-label="Modo de la interfaz">
-          <button aria-pressed={command} onClick={() => nav("comando")}>COMMAND</button>
-          <button aria-pressed={!command} onClick={() => nav(last.get())}>WORKSPACE</button>
+          <button aria-pressed={command} onClick={() => nav("comando")}>Command</button>
+          <button aria-pressed={!command} onClick={() => nav(last.get())}>Workspace</button>
         </div>
         <span className="top__spacer" />
-        {running > 0 && <button className={`pill pill--ok`} style={{ cursor: "pointer", background: "none" }} onClick={() => nav("sistema")}><i />{running} en ejecución</button>}
-        {waiting > 0 && <button className="pill pill--warn" style={{ cursor: "pointer", background: "none" }} onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
+        {running > 0 && <button className="pill pill--ok" onClick={() => nav("sistema")}><i />{running} en ejecución</button>}
+        {waiting > 0 && <button className="pill pill--warn" onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
         <label className="sr" htmlFor="espacio">Espacio de trabajo</label>
         <div><Select value={space.id} onChange={setSpace} options={boot.spaces.filter((s) => !s.archived).map((s) => [s.id, `${s.name} · ${boot.space_kinds[s.kind]}`])} /></div>
       </header>

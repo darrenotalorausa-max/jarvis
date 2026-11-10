@@ -5,7 +5,7 @@
 ## Estado
 Código subido a GitHub en la rama `claude/trusting-edison-s2ex3g`.
 
-Producto unificado funcionando en Linux: backend, worker, interfaz, lanzadores, pruebas y documentación.
+Interfaz rediseñada (ver `docs/DESIGN.md`). Producto unificado funcionando en Linux: backend, worker, interfaz, lanzadores, pruebas y documentación.
 Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el código.
 
 ## Para retomar (en orden de valor)

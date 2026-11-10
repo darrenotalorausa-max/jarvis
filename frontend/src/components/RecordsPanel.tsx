@@ -1,7 +1,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { api, fmtNum, label, url, type Field, type Rec } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, Check, Empty, ErrorBox, FieldRow, Modal, Panel, Select, Text } from "./ui";
+import { Badge, Btn, Check, Empty, ErrorBox, FieldRow, Modal, Panel, Select, Skeleton, Text } from "./ui";
 
 const WITH_PROJECT = ["milestone", "brief", "delivery", "capacity", "transaction", "time_entry", "campaign", "lead", "product", "experiment", "task"];
 const WITH_BRAND = ["brand_asset", "brief", "product"];
@@ -73,7 +73,7 @@ export function RecordsPanel(p: Props) {
         {spec.statuses.length > 1 && <div style={{ width: 170 }}><Select value={status} onChange={setStatus} empty="Todos los estados" options={spec.statuses.map((s) => [s, label(s)])} /></div>}
         <Check checked={archived} onChange={setArchived}>Ver archivados</Check>
       </div>
-      {error ? <ErrorBox message={error} retry={reload} /> : !data ? <p className="muted">Cargando…</p> : !data.length ? (
+      {error ? <ErrorBox message={error} retry={reload} /> : !data ? <Skeleton /> : !data.length ? (
         <Empty title={archived ? "No hay elementos archivados" : q || status ? "Nada coincide con el filtro" : `Aún no hay ${spec.plural.toLowerCase()}`}>
           {!archived && !q && !status && "Crea el primero con «Nuevo»" + (p.importable ? " o impórtalos desde un CSV." : ".")}
         </Empty>

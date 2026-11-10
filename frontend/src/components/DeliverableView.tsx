@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, fmtDate, freshness, url, type Section } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, ErrorBox, FieldRow, Modal, Panel, Rich, Select, Text } from "./ui";
+import { Badge, Btn, ErrorBox, FieldRow, Modal, Panel, Rich, Select, Skeleton, Text } from "./ui";
 
 type Detail = {
   id: string; kind: string; kind_label: string; title: string; status: string; current_version: number; job_id: string | null;
@@ -94,7 +94,7 @@ export function DeliverableView({ id, onChanged }: { id: string; onChanged?: () 
   const conns = useData<any[]>(() => api("/connections"), [dialog === "send"]);
   useEffect(() => { setDraft(null); setExports(null); }, [id]);
   if (error) return <ErrorBox message={error} retry={reload} />;
-  if (!d) return <p className="muted">Cargando entregable…</p>;
+  if (!d) return <Skeleton />;
   const v = d.version, c = v.content;
   const post = async (path: string, body: Record<string, unknown>, ok?: string) => { const r = await run(api(`/deliverables/${id}/${path}`, { body: { space: space.id, ...body } }), ok); reload(); onChanged?.(); return r; };
   const save = async () => {
@@ -160,7 +160,7 @@ export function DeliverableView({ id, onChanged }: { id: string; onChanged?: () 
           {(v.checks?.automaticas || []).map((k: any) => (
             <div className="check-row" key={k.id}><Badge value={k.result} text={k.result === "ok" ? "Correcto" : k.result === "warn" ? "Aviso" : "Falla"} /><div><div>{k.label}</div>{k.detail && <div className="small muted wrap">{k.detail}</div>}</div></div>
           ))}
-          <p className="panel__title" style={{ margin: "14px 0 6px" }}>Requiere revisión de una persona</p>
+          <p className="subhead">Requiere revisión de una persona</p>
           <ul className="list small">{(v.checks?.requiere_persona || []).map((t: string) => <li key={t}>{t}</li>)}</ul>
         </Panel>
         <Panel title="Aprobaciones">

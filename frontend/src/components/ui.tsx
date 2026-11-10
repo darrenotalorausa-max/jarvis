@@ -44,6 +44,11 @@ export function Empty({ title, children, action }: { title: string; children?: R
   );
 }
 
+/** Estado de carga con la forma aproximada de lo que llega. */
+export function Skeleton() {
+  return <div className="skeleton" role="status" aria-label="Cargando"><i /><i /><i /></div>;
+}
+
 export function ErrorBox({ message, retry }: { message: string; retry?: () => void }) {
   return (
     <div className="errorbox" role="alert">
@@ -131,7 +136,7 @@ export function Stat({ label: text, value, tone, hint }: { label: string; value:
 export function Progress({ value, live }: { value: number; live?: boolean }) {
   return (
     <div className={`progress${live ? " progress--live" : ""}`} role="progressbar" aria-valuenow={Math.round(value * 100)} aria-valuemin={0} aria-valuemax={100}>
-      <div style={{ width: `${Math.round(value * 100)}%` }} />
+      <div style={{ transform: `scaleX(${Math.max(0, Math.min(1, value)).toFixed(3)})` }} />
     </div>
   );
 }

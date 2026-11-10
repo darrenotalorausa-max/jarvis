@@ -132,7 +132,7 @@ function Editor({ project, onSaved }: { project: Rec; onSaved: () => void }) {
               ))}</tbody></table></div>
           )}
           {(d.suggestions || []).filter((s: any) => s.file_id === active).length > 0 && <>
-            <p className="panel__title" style={{ margin: "14px 0 6px" }}>Momentos sugeridos</p>
+            <p className="subhead">Momentos sugeridos</p>
             {(d.suggestions as any[]).filter((s) => s.file_id === active).map((s, i) => (
               <div key={i} className="row small" style={{ padding: "4px 0" }}><span className="mono">{tc(s.start)}–{tc(s.end)}</span><span className="wrap" style={{ flex: 1 }}>{s.reason} <span className="muted">({s.origin})</span></span>
                 <Btn small onClick={() => addSeg({ file_id: s.file_id, start: s.start, end: s.end, label: s.reason.slice(0, 40) })}>Añadir</Btn></div>

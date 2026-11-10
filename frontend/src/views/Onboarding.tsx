@@ -82,7 +82,7 @@ export function Onboarding({ boot, reload }: { boot: Boot; reload: () => Promise
 
   return (
     <div className="wizard">
-      <div className="brand" style={{ fontSize: 18 }}>JARVIS OS</div>
+      <div className="brand">Jarvis OS</div>
       <div className="steps">{STEPS.map((s, i) => <span key={s} aria-current={i === step ? "step" : undefined}>{i + 1}. {s}</span>)}</div>
       {error && <div className="errorbox" role="alert">{error}</div>}
 

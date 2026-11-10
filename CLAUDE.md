@@ -38,8 +38,9 @@ Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`Rec
 - No añadir dependencias pesadas, ORM, Redis, Docker obligatorio ni microservicios.
 - Un módulo nuevo de registros = entrada en `records.KINDS` (+ `RecordsPanel` en una vista). Un trabajo nuevo = `@handler` + `JOB_TYPES` en `api.py`.
 - Cambios de esquema: nueva migración numerada; nunca editar una ya publicada.
+- Interfaz: colores, radios, espacios y tiempos solo mediante los tokens de `styles.css`; sin sombras, sin `transition: all`, sin animar propiedades de layout. El núcleo es el único elemento con luz y animación continua (`docs/DESIGN.md`).
 
 ## Documentación
 `README_START_HERE.md` (usuario) · `docs/ARCHITECTURE.md` · `docs/IMPLEMENTATION_STATUS.md` (qué está probado y qué no) ·
-`docs/PROVIDER_MATRIX.md` · `docs/ACCEPTANCE.md` (pruebas ↔ criterios) · `docs/RESUME.md` (punto de reanudación) · `docs/VIDEO_MANIFEST.md`.
+`docs/PROVIDER_MATRIX.md` · `docs/ACCEPTANCE.md` (pruebas ↔ criterios) · `docs/RESUME.md` (punto de reanudación) · `docs/VIDEO_MANIFEST.md` · `docs/DESIGN.md` (hoja de decisiones visuales).
 Mantén `IMPLEMENTATION_STATUS.md` y `RESUME.md` al día al terminar cualquier cambio.

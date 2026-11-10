@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { api, fmtBytes, fmtDate, fmtNum, url, type Job } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Progress, Stat, Tabs, Text, useConfirm } from "../components/ui";
+import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Progress, Skeleton, Stat, Tabs, Text, useConfirm } from "../components/ui";
 
 function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { doneTick, jobs } = useApp();
@@ -9,7 +9,7 @@ function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { data } = useData<Job>(() => api(`/jobs/${id}`), [id, doneTick, live?.stage, live?.status]);
   return (
     <Modal title={`Trabajo ${id}`} onClose={onClose} wide>
-      {!data ? <p className="muted">Cargando…</p> : <div className="stack">
+      {!data ? <Skeleton /> : <div className="stack">
         <div className="row"><strong className="wrap">{data.title}</strong><Badge value={data.status} text={data.status_label} /></div>
         {data.status === "running" && <Progress value={data.progress} live />}
         {(data.error || data.message) && <p className={data.error ? "errorbox" : "note"}>{data.error || data.message}</p>}
@@ -17,9 +17,9 @@ function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <dt>Creado</dt><dd>{fmtDate(data.created_at)}</dd><dt>Finalizado</dt><dd>{fmtDate(data.finished_at)}</dd>
           <dt>Uso</dt><dd>{data.usage?.llamadas !== undefined ? `${data.usage.llamadas} llamadas · ${data.usage.tokens} tokens · ${data.usage.costo_estimado_usd} USD estimados · ${data.usage.respuestas_en_cache} en caché · ${(data.usage.conexiones || []).join(", ") || "sin proveedores"}` : "—"}</dd>
         </dl>
-        <p className="panel__title">Etapas y registro</p>
+        <p className="subhead">Etapas y registro</p>
         <div className="diff" style={{ maxHeight: 280, overflowY: "auto" }}>{(data.events || []).map((e: any) => <div key={e.id}>{e.ts.slice(11, 19)} [{e.kind}] {e.message}</div>)}</div>
-        <p className="panel__title">Parámetros</p>
+        <p className="subhead">Parámetros</p>
         <div className="diff">{JSON.stringify(data.params, null, 2)}</div>
       </div>}
     </Modal>

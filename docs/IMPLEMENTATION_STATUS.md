@@ -29,6 +29,7 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Visión | Descripción de imagen con conexión que declare visión; respeta la política del espacio |
 | Respaldo | Ciclo crear → modificar → restaurar, sin secretos, copia previa automática, rechazo de respaldos alterados o con rutas inseguras |
 | Interfaz | Primer inicio, las 13 pantallas, estados vacíos, CRUD, video de extremo a extremo, revisión, Shopify, error de conexión, trabajos, respaldo, foco por teclado, movimiento reducido, móvil sin desbordamiento, sin errores de consola ni respuestas 5xx |
+| Diseño | Rediseño con la skill Anti-Slop: tokens, Inter + JetBrains Mono locales, elevación tonal, estados completos, núcleo con progreso real; verificador de la skill sin errores ni avisos (`docs/DESIGN.md`) |
 | Instalación Unix | `scripts/setup.sh` + `scripts/start.sh` desde un clon limpio (ver ACCEPTANCE.md) |
 
 ## B. Implementado, sin comprobar con credenciales o entorno reales
@@ -42,6 +43,7 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Brave Search, Tavily | Formato verificado solo por resultados de búsqueda sobre su documentación (no se pudo abrir la documentación oficial desde el entorno de desarrollo). `count`/`freshness` de Brave y `time_range` de Tavily requieren confirmación |
 | ElevenLabs (voz) | Petición según documentación (`/v1/text-to-speech/{voice_id}`, `/v2/voices`); sin llamada real |
 | Transcripción (endpoint `/audio/transcriptions`, faster-whisper) | Sin llamada real ni modelo local descargado |
+| Onda del núcleo con nivel real del micrófono | Implementada con Web Audio; sin probar con micrófono real |
 | Voz en el navegador (pulsar para hablar, lectura de respuestas) | El navegador de pruebas no ofrece reconocimiento ni micrófono. Probado solo el respaldo a texto y que el micrófono no aparece abierto |
 | Sección Shopify | Validada estructuralmente; **no instalada en una tienda ni en un tema real** |
 | Calidad de los resultados con modelos reales | Los prompts no se han evaluado con ningún modelo real |

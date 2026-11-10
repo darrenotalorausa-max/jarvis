@@ -4,7 +4,7 @@ import { useApp, useData } from "../store";
 import { DeliverableView } from "../components/DeliverableView";
 import { RecordsPanel } from "../components/RecordsPanel";
 import { FileTable, UploadButton, useFiles, useRecords } from "../components/shared";
-import { Badge, Btn, Empty, ErrorBox, FieldRow, Modal, Panel, Select, Stat, Tabs, Text } from "../components/ui";
+import { Badge, Btn, Empty, ErrorBox, FieldRow, Modal, Panel, Select, Skeleton, Stat, Tabs, Text } from "../components/ui";
 import { fmtDate } from "../api";
 
 function Head({ title, sub }: { title: string; sub: string }) {
@@ -36,7 +36,7 @@ export function Review() {
           <div style={{ width: 180 }}><Select value={status} onChange={setStatus} empty="Todos los estados" options={boot.deliverable_statuses.map((s) => [s, label(s)])} /></div>
           <div style={{ width: 210 }}><Select value={kind} onChange={setKind} empty="Todos los tipos" options={Object.entries(boot.deliverable_kinds)} /></div>
         </>}>
-          {list.error ? <ErrorBox message={list.error} retry={list.reload} /> : !list.data ? <p className="muted">Cargando…</p> : !list.data.length ? (
+          {list.error ? <ErrorBox message={list.error} retry={list.reload} /> : !list.data ? <Skeleton /> : !list.data.length ? (
             <Empty title="Nada que revisar">Los entregables aparecen aquí cuando un trabajo termina. También puedes crear un documento manual desde Leads → Propuestas.</Empty>
           ) : (
             <div className="tablewrap"><table><thead><tr><th>Título</th><th>Tipo</th><th>Estado</th><th>Versión</th><th>Actualizado</th></tr></thead>

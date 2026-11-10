@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { api, ApiError, fmtDate } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Select, Text, useConfirm } from "../components/ui";
+import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Select, Skeleton, Text, useConfirm } from "../components/ui";
 
 type Conn = Record<string, any>;
 type Meta = { providers: Record<string, any>; capabilities: Record<string, string> };
@@ -145,7 +145,7 @@ export function Connections() {
       {!boot.secrets_backend.protected && <div className="banner"><span><strong>Almacén de credenciales:</strong> {boot.secrets_backend.label}. Las claves quedan fuera de la carpeta de datos y de los respaldos, pero sin cifrado del sistema.</span></div>}
       <div className="grid grid--side">
         <Panel title="Conexiones configuradas">
-          {!list.data ? <p className="muted">Cargando…</p> : !list.data.length ? (
+          {!list.data ? <Skeleton /> : !list.data.length ? (
             <Empty title="Aún no hay conexiones" action={<Btn kind="primary" onClick={() => setEditing("new")}>Añadir la primera</Btn>}>
               Sin conexiones funcionan proyectos, archivos, tareas, revisión manual, importación/exportación, video con FFmpeg y los comandos directos de Jarvis. Para investigar o redactar con IA, añade Ollama (local) o un proveedor en la nube.
             </Empty>

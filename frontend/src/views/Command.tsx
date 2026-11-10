@@ -3,7 +3,7 @@ import { api, ApiError, fmtDate } from "../api";
 import { useApp, useData } from "../store";
 import { Core, type CoreState } from "../components/Core";
 import { JobList } from "../components/shared";
-import { Badge, Btn, Check, FieldRow, Panel, Select, Stat } from "../components/ui";
+import { Badge, Btn, Check, FieldRow, Panel, Select, Skeleton, Stat } from "../components/ui";
 
 type Msg = { id: number | string; role: string; content: string; data?: any; created_at?: string };
 type VoicePrefs = { stt: string; tts: string; autoSend: boolean };
@@ -32,11 +32,44 @@ export function Command() {
   const speakingRef = useRef(false);
   const chatEnd = useRef<HTMLDivElement>(null);
   const heard = useRef("");
+  const level = useRef(0);
+  const meter = useRef<{ ctx: AudioContext; raf: number; own?: MediaStream } | null>(null);
+
+  // Medidor del nivel real del micrófono para la onda del núcleo. No graba ni guarda audio: solo calcula el volumen.
+  async function startMeter(stream?: MediaStream) {
+    try {
+      const src = stream || await navigator.mediaDevices.getUserMedia({ audio: true });
+      const ctx = new AudioContext();
+      const an = ctx.createAnalyser();
+      an.fftSize = 512;
+      ctx.createMediaStreamSource(src).connect(an);
+      const buf = new Uint8Array(an.fftSize);
+      const m = { ctx, raf: 0, own: stream ? undefined : src };
+      const loop = () => {
+        an.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (const v of buf) sum += ((v - 128) / 128) ** 2;
+        level.current = Math.sqrt(sum / buf.length);
+        m.raf = requestAnimationFrame(loop);
+      };
+      loop();
+      meter.current = m;
+    } catch { /* sin medidor: la onda usa un nivel mínimo */ }
+  }
+  function stopMeter() {
+    const m = meter.current;
+    if (!m) return;
+    cancelAnimationFrame(m.raf);
+    m.own?.getTracks().forEach((t) => t.stop());
+    m.ctx.close().catch(() => undefined);
+    meter.current = null;
+    level.current = 0;
+  }
 
   useEffect(() => { api<Msg[]>("/assistant/history", { query: { space: space.id } }).then(setMsgs).catch(() => setMsgs([])); }, [space.id]);
   // Solo se desplaza la conversación, nunca la página.
   useEffect(() => { const box = chatEnd.current?.parentElement; if (box) box.scrollTop = box.scrollHeight; }, [msgs.length]);
-  useEffect(() => () => { stopSpeaking(); try { rec.current?.stop?.(); } catch { /* ya detenido */ } }, []);
+  useEffect(() => () => { stopSpeaking(); stopMeter(); try { rec.current?.stop?.(); } catch { /* ya detenido */ } }, []);
 
   const savePrefs = async (p: Partial<VoicePrefs>) => { await run(api("/settings", { method: "PATCH", body: { voice: { ...prefs, ...p } } })); reload(); };
   const setSpeak = (v: boolean) => { speakingRef.current = v; setSpeaking(v); };
@@ -107,9 +140,9 @@ export function Command() {
         setText(heard.current);
       };
       r.onerror = (ev: any) => { if (ev.error !== "aborted") notify(MIC_ERRORS[ev.error] || `Fallo del reconocimiento de voz (${ev.error}). Sigue por texto.`, "error"); };
-      r.onend = () => { setListening(false); rec.current = null; if (prefs.autoSend && heard.current.trim()) send(heard.current, "voz"); };
+      r.onend = () => { stopMeter(); setListening(false); rec.current = null; if (prefs.autoSend && heard.current.trim()) send(heard.current, "voz"); };
       rec.current = r;
-      try { r.start(); setListening(true); } catch { notify("No se pudo iniciar el micrófono. Sigue por texto.", "error"); }
+      try { r.start(); setListening(true); startMeter(); } catch { notify("No se pudo iniciar el micrófono. Sigue por texto.", "error"); }
     } else if (prefs.stt === "servidor" && canRecord) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -117,6 +150,7 @@ export function Command() {
         const mr = new MediaRecorder(stream);
         mr.ondataavailable = (e) => chunks.push(e.data);
         mr.onstop = async () => {
+          stopMeter();
           stream.getTracks().forEach((t) => t.stop()); // micrófono cerrado de inmediato
           setListening(false);
           rec.current = null;
@@ -135,6 +169,7 @@ export function Command() {
         };
         rec.current = mr;
         mr.start();
+        startMeter(stream);
         setListening(true);
       } catch {
         notify(MIC_ERRORS["not-allowed"], "error");
@@ -147,7 +182,9 @@ export function Command() {
     try { rec.current?.stop?.(); } catch { /* ya detenido */ }
   }
 
-  const running = jobs.filter((j) => j.status === "running").length;
+  const runningJobs = jobs.filter((j) => j.status === "running");
+  const running = runningJobs.length;
+  const progress = running ? runningJobs.reduce((a, j) => a + (j.progress || 0), 0) / running : null;
   const p = overview.data?.pendientes;
   const awaiting = (p?.por_aprobar || 0) + jobs.filter((j) => j.status === "waiting_approval").length;
   const state: CoreState = listening ? "listening" : speaking ? "speaking" : failed ? "error" : busy || running ? "processing" : awaiting ? "approval" : "idle";
@@ -159,7 +196,7 @@ export function Command() {
     <div className="command">
       <div className="stack">
         <Panel title="Pendiente" actions={<Btn small onClick={() => send("Resume lo pendiente")}>Resumir</Btn>}>
-          {!p ? <p className="muted">Cargando…</p> : <>
+          {!p ? <Skeleton /> : <>
             <div className="stats">
               <Stat label="Por aprobar" value={p.por_aprobar} tone={p.por_aprobar ? "amber" : undefined} />
               <Stat label="Borradores" value={p.borradores} />
@@ -182,8 +219,7 @@ export function Command() {
       </div>
 
       <div className="command__center">
-        <Core state={state} detail={detail} />
-        <div style={{ height: 44 }} />
+        <Core state={state} detail={detail} progress={progress} running={running} count={awaiting} levelRef={level} />
         <Panel className="grid" title="Jarvis">
           <div className="chat" aria-live="polite">
             {!msgs.length && <p className="muted small">Escribe una orden o mantén pulsado el micrófono. Ejemplos: «Busca oportunidades en accesorios para mascotas», «Resume lo pendiente», «tarea: llamar al gestor», «ayuda».</p>}

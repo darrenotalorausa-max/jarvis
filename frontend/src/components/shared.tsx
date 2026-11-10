@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from "react";
 import { api, fmtBytes, fmtDate, url, type Deliverable, type FileRow, type Job, type Rec } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, Empty, ErrorBox, Modal, Progress } from "./ui";
+import { Badge, Btn, Empty, ErrorBox, Modal, Progress, Skeleton } from "./ui";
 
 export function useRecords(kind: string, deps: unknown[] = []) {
   const { space, doneTick } = useApp();
@@ -81,7 +81,7 @@ export function DeliverableList({ kind, empty }: { kind?: string; empty: ReactNo
   const { space, nav, doneTick } = useApp();
   const { data, error, reload } = useData<Deliverable[]>(() => api("/deliverables", { query: { space: space.id, kind } }), [space.id, kind, doneTick]);
   if (error) return <ErrorBox message={error} retry={reload} />;
-  if (!data) return <p className="muted">Cargando…</p>;
+  if (!data) return <Skeleton />;
   if (!data.length) return <Empty title="Aún no hay entregables aquí">{empty}</Empty>;
   return (
     <div className="tablewrap">
