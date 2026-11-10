@@ -410,6 +410,23 @@ def preview_html(file_id: str, space: str):
                     headers={"Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:"})
 
 
+@app.post("/api/files/{file_id}/describe")
+def describe_image(file_id: str, body: dict = Body(...)):
+    """Descripción de una imagen con un modelo con visión. La imagen solo sale del equipo si la política del espacio lo permite."""
+    import base64
+    space = body.get("space")
+    f = files.get(file_id, space)
+    if not f or f["mime"] not in ("image/png", "image/jpeg", "image/webp", "image/gif"):
+        raise ValueError("El archivo no es una imagen compatible (PNG, JPEG, WebP o GIF).")
+    if f["size"] > 8 * 1024 * 1024:
+        raise ValueError("La imagen supera 8 MB.")
+    data = base64.b64encode(files.path_of(f).read_bytes()).decode()
+    text, meta = router.llm(router.Ctx(space_id=space, limits={"max_calls": 1, "max_tokens": 20000, "max_cost_usd": 0.2}),
+                            system="Describe en español, de forma objetiva y breve, lo que se ve en la imagen. No identifiques personas ni inventes contexto.",
+                            user=str(body.get("question") or "Describe esta imagen para catalogarla.")[:500], images=[(f["mime"], data)], max_tokens=400)
+    return {"text": text.strip(), "connection": meta["connection"], "model": meta.get("model")}
+
+
 @app.delete("/api/files/{file_id}")
 def archive_file(file_id: str, space: str):
     if not files.get(file_id, space):

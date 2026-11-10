@@ -201,4 +201,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Al ejecutarse con "python -m" este archivo es el módulo __main__; los manejadores se registran en jarvis.worker.
+    # Se delega en el módulo importado para que ambos compartan el mismo registro.
+    from jarvis.worker import main as _main
+    _main()

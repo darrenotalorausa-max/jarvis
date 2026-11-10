@@ -494,3 +494,22 @@ def test_api_bootstrap_overview_and_settings(client, space):
     assert o["disponibilidad"]["texto"]["disponible"] is False and o["disponibilidad"]["texto"]["motivos"] == []
     assert client.get("/api/diagnostics").json()["solo_loopback"] is True
     assert client.get("/api/records", params={"space": "esp_noexiste", "kind": "task"}).status_code == 404
+
+
+def test_vision_describe_image_respects_capability_and_policy(fake, conn, space, client):
+    import base64, json as _json
+    sid = space()
+    png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==")
+    f = client.post("/api/files", data={"space": sid}, files={"file": ("foto.png", png, "image/png")}).json()
+    conn()                                                     # modelo de texto sin visión declarada
+    r = client.post(f"/api/files/{f['id']}/describe", json={"space": sid})
+    assert r.status_code == 409 and "Visión" in r.json()["detail"] and fake.count("llm.test") == 0
+    conn(name="Con visión", capabilities=["texto", "vision"])
+    fake.llm = lambda s, u: "Un píxel"
+    r = client.post(f"/api/files/{f['id']}/describe", json={"space": sid})
+    assert r.status_code == 200 and r.json()["text"] == "Un píxel"
+    sent = _json.loads(fake.calls[-1].content)["messages"][1]["content"]
+    assert sent[1]["image_url"]["url"].startswith("data:image/png;base64,")
+    local_only = space("Privado", "negocio", "solo_local")
+    f2 = client.post("/api/files", data={"space": local_only}, files={"file": ("foto.png", png, "image/png")}).json()
+    assert client.post(f"/api/files/{f2['id']}/describe", json={"space": local_only}).status_code == 409   # la imagen no sale a la nube

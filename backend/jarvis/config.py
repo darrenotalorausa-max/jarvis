@@ -7,6 +7,23 @@ APP_VERSION = "0.1.0"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def _load_env_file() -> None:
+    """Lee .env de la raíz (opcional). Solo acepta variables JARVIS_* y no pisa las ya definidas. Nunca contiene credenciales."""
+    path = REPO_ROOT / ".env"
+    if not path.is_file():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#") and "=" in line:
+            key, _, value = line.partition("=")
+            key = key.strip()
+            if key.startswith("JARVIS_") and key not in os.environ:
+                os.environ[key] = value.strip().strip('"').strip("'")
+
+
+_load_env_file()
+
+
 def home() -> Path:
     return Path(os.environ.get("JARVIS_HOME") or REPO_ROOT)
 

@@ -316,3 +316,23 @@ def test_run_proc_no_shell_and_cancel(space):
     with pytest.raises(Cancelled):
         ctx.run_proc(["python3", "-c", "import time; time.sleep(30)"])
     assert time.monotonic() - t0 < 10
+
+
+def test_worker_as_separate_process_runs_registered_handlers(space, tmp_path):
+    """El worker real (python -m jarvis.worker) debe ejecutar trabajos de la cola y detenerse limpiamente."""
+    import os, signal, subprocess, sys
+    sid = space("Local", "negocio", "solo_local")
+    product = records.create(sid, "product", "Vela", {"specs": "200 g de cera", "price": 12})
+    j, _ = jobs.enqueue(sid, "shopify_package", "Paquete", {"product_id": product["id"]})
+    proc = subprocess.Popen([sys.executable, "-m", "jarvis.worker"], cwd=str(config.REPO_ROOT / "backend"), env=os.environ.copy(),
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and jobs.get(j["id"])["status"] in ("pending", "running"):
+            time.sleep(0.3)
+        got = jobs.get(j["id"])
+        assert got["status"] == "completed", got
+        assert db.get_setting("worker_heartbeat")
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        assert proc.wait(20) == 0

@@ -31,7 +31,7 @@ def main() -> int:
         print(f"[Jarvis] AVISO: JARVIS_HOST={host} expone la aplicación fuera de este equipo. No hay autenticación: úsalo solo en redes de confianza.")
     print(f"[Jarvis] Base de datos: {config.db_path()}" + (f" (migraciones aplicadas: {applied})" if applied else ""))
     worker_log = open(config.logs_dir() / "worker.out.log", "a", encoding="utf-8")
-    worker = subprocess.Popen([sys.executable, "-m", "jarvis.worker"], cwd=str(config.REPO_ROOT / "backend"), stdout=worker_log, stderr=subprocess.STDOUT, env=os.environ.copy())
+    worker = subprocess.Popen([sys.executable, "-m", "jarvis.worker"], cwd=str(config.REPO_ROOT / "backend"), stdout=worker_log, stderr=subprocess.STDOUT, env={**os.environ, "JARVIS_RECOVER_ALL": "1"})
     stop = threading.Event()
 
     def watch():
