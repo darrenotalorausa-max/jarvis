@@ -1,0 +1,132 @@
+{%- comment -%}
+  Jarvis OS · Sección autocontenida de página de producto (Online Store 2.0).
+  No depende de snippets ni de assets del tema. Usa el formulario estándar de producto
+  (envía a /cart/add), por lo que el carrito lo gestiona el tema donde se instale.
+{%- endcomment -%}
+{%- liquid
+  assign p = section.settings.product | default: product
+  assign v = p.selected_or_first_available_variant
+-%}
+{%- style -%}
+  #jl-{{ section.id }} {
+    --jl-bg: {{ section.settings.color_bg }};
+    --jl-text: {{ section.settings.color_text }};
+    --jl-accent: {{ section.settings.color_accent }};
+    --jl-accent-text: {{ section.settings.color_accent_text }};
+  }
+{%- endstyle -%}
+
+<div id="jl-{{ section.id }}" class="jl">
+  <div class="jl__hero">
+    <div class="jl__media">
+      {%- if section.settings.image != blank -%}
+        {{ section.settings.image | image_url: width: 1200 | image_tag: loading: 'eager', sizes: '(min-width: 750px) 50vw, 100vw', widths: '360, 540, 720, 900, 1200', alt: section.settings.image.alt }}
+      {%- elsif p.featured_image != blank -%}
+        {{ p.featured_image | image_url: width: 1200 | image_tag: loading: 'eager', sizes: '(min-width: 750px) 50vw, 100vw', widths: '360, 540, 720, 900, 1200', alt: p.featured_image.alt }}
+      {%- else -%}
+        {{ 'product-1' | placeholder_svg_tag: 'jl__placeholder' }}
+      {%- endif -%}
+    </div>
+    <div class="jl__buy">
+      <h1 class="jl__title">{{ section.settings.heading | default: p.title | escape }}</h1>
+      {%- if section.settings.subheading != blank -%}
+        <p class="jl__sub">{{ section.settings.subheading | escape }}</p>
+      {%- endif -%}
+      {%- if p != blank -%}
+        <p class="jl__price">
+          <span class="jl__price-now">{{ v.price | money }}</span>
+          {%- if v.compare_at_price > v.price -%}
+            <s class="jl__price-was">{{ v.compare_at_price | money }}</s>
+          {%- endif -%}
+        </p>
+        {%- form 'product', p, class: 'jl__form' -%}
+          {%- if p.has_only_default_variant -%}
+            <input type="hidden" name="id" value="{{ v.id }}">
+          {%- else -%}
+            <label class="jl__label" for="jl-variant-{{ section.id }}">{{ section.settings.variant_label | escape }}</label>
+            <select class="jl__select" id="jl-variant-{{ section.id }}" name="id">
+              {%- for variant in p.variants -%}
+                <option value="{{ variant.id }}"{% if variant.id == v.id %} selected{% endif %}{% unless variant.available %} disabled{% endunless %}>
+                  {{ variant.title | escape }} · {{ variant.price | money }}
+                </option>
+              {%- endfor -%}
+            </select>
+          {%- endif -%}
+          <button class="jl__cta" type="submit"{% unless v.available %} disabled{% endunless %}>
+            {%- if v.available -%}
+              {{ section.settings.cta_label | escape }}
+            {%- else -%}
+              {{ section.settings.sold_out_label | escape }}
+            {%- endif -%}
+          </button>
+        {%- endform -%}
+      {%- else -%}
+        <p class="jl__notice">{{ section.settings.no_product_text | escape }}</p>
+      {%- endif -%}
+      {%- if section.settings.conditions != blank -%}
+        <div class="jl__conditions">{{ section.settings.conditions }}</div>
+      {%- endif -%}
+    </div>
+  </div>
+
+  {%- assign benefits = section.blocks | where: 'type', 'benefit' -%}
+  {%- if benefits.size > 0 -%}
+    <div class="jl__block">
+      <h2 class="jl__h2">{{ section.settings.benefits_heading | escape }}</h2>
+      <ul class="jl__grid">
+        {%- for block in benefits -%}
+          <li class="jl__card" {{ block.shopify_attributes }}>
+            <h3 class="jl__h3">{{ block.settings.title | escape }}</h3>
+            <p>{{ block.settings.text | escape }}</p>
+          </li>
+        {%- endfor -%}
+      </ul>
+    </div>
+  {%- endif -%}
+
+  {%- assign specs = section.blocks | where: 'type', 'spec' -%}
+  {%- if specs.size > 0 -%}
+    <div class="jl__block">
+      <h2 class="jl__h2">{{ section.settings.specs_heading | escape }}</h2>
+      <ul class="jl__specs">
+        {%- for block in specs -%}
+          <li {{ block.shopify_attributes }}>{{ block.settings.text | escape }}</li>
+        {%- endfor -%}
+      </ul>
+    </div>
+  {%- endif -%}
+
+  {%- assign objections = section.blocks | where: 'type', 'objection' -%}
+  {%- if objections.size > 0 -%}
+    <div class="jl__block">
+      <h2 class="jl__h2">{{ section.settings.objections_heading | escape }}</h2>
+      {%- for block in objections -%}
+        <div class="jl__qa" {{ block.shopify_attributes }}>
+          <h3 class="jl__h3">{{ block.settings.question | escape }}</h3>
+          <p>{{ block.settings.answer | escape }}</p>
+        </div>
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+
+  {%- assign faqs = section.blocks | where: 'type', 'faq' -%}
+  {%- if faqs.size > 0 -%}
+    <div class="jl__block">
+      <h2 class="jl__h2">{{ section.settings.faq_heading | escape }}</h2>
+      {%- for block in faqs -%}
+        <details class="jl__faq" {{ block.shopify_attributes }}>
+          <summary>{{ block.settings.question | escape }}</summary>
+          <p>{{ block.settings.answer | escape }}</p>
+        </details>
+      {%- endfor -%}
+    </div>
+  {%- endif -%}
+</div>
+
+{% stylesheet %}
+__CSS__
+{% endstylesheet %}
+
+{% schema %}
+__SCHEMA__
+{% endschema %}
