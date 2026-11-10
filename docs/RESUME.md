@@ -3,8 +3,7 @@
 Última sesión: 2026-11-10. Rama: `claude/trusting-edison-s2ex3g`.
 
 ## Estado
-**Pendiente de subir:** los commits están hechos en local, pero `git push` fue rechazado por GitHub (403: la app de Claude no tiene
-acceso al repositorio). Tras reconectar GitHub: `git push -u origin claude/trusting-edison-s2ex3g`.
+Código subido a GitHub en la rama `claude/trusting-edison-s2ex3g`.
 
 Producto unificado funcionando en Linux: backend, worker, interfaz, lanzadores, pruebas y documentación.
 Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el código.
