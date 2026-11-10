@@ -43,7 +43,7 @@ def transcribe(conn: dict, secret: str | None, audio_path: Path, language: str |
     """Devuelve {"text": str, "segments": [{"start","end","text"}], "duration": float|None}."""
     provider = conn["provider"]
     what = f"Transcripción ({conn.get('name') or provider})"
-    if provider in ("openai_compat", "groq"):
+    if provider in ("openai_compat", "groq", "openai"):
         model = (conn.get("options") or {}).get("transcription_model")
         if not model:
             raise ProviderError("config", "Indica el modelo de transcripción en la conexión (campo «Modelo de transcripción»).")

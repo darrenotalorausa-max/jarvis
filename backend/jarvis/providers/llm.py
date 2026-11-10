@@ -7,7 +7,44 @@ from __future__ import annotations
 from . import base
 from .base import LLMResult, ProviderError
 
-OPENAI_STYLE = ("openai_compat", "groq")
+OPENAI_STYLE = ("openai_compat", "groq", "openai")
+
+# Las pruebas inyectan aquí un transporte httpx2 simulado; en operación real es None.
+ANTHROPIC_TRANSPORT = None
+
+
+def _claude(conn: dict, secret: str | None):
+    """Cliente del SDK oficial de Anthropic. Los reintentos los gestiona el router de Jarvis (max_retries=0)."""
+    import anthropic
+    kw = {"api_key": secret or "", "timeout": float(conn.get("timeout_s") or 120), "max_retries": 0}
+    if conn.get("base_url") and conn["base_url"].rstrip("/") != "https://api.anthropic.com":
+        kw["base_url"] = conn["base_url"]
+    if ANTHROPIC_TRANSPORT is not None:
+        kw["http_client"] = anthropic.DefaultHttpxClient(transport=ANTHROPIC_TRANSPORT)
+    return anthropic.Anthropic(**kw)
+
+
+def _claude_call(what: str, fn):
+    """Traduce las excepciones tipadas del SDK al vocabulario de estados de Jarvis (de la más específica a la más general)."""
+    import anthropic
+    try:
+        return fn()
+    except anthropic.AuthenticationError as exc:
+        raise ProviderError("auth", f"{what}: Anthropic rechazó la credencial. {exc.message}", http_status=401)
+    except anthropic.PermissionDeniedError as exc:
+        raise ProviderError("permission", f"{what}: la clave no tiene permiso para este modelo u operación. {exc.message}", http_status=403)
+    except anthropic.NotFoundError as exc:
+        raise ProviderError("not_supported", f"{what}: el modelo indicado no existe para esta cuenta. {exc.message}", http_status=404)
+    except anthropic.RateLimitError as exc:
+        retry = exc.response.headers.get("retry-after")
+        raise ProviderError("quota", f"{what}: límite de uso alcanzado. {exc.message}", retry_after=float(retry) if retry and retry.replace(".", "").isdigit() else None, http_status=429)
+    except anthropic.APITimeoutError:
+        raise ProviderError("timeout", f"{what}: Anthropic no respondió dentro del tiempo límite.")
+    except anthropic.APIConnectionError:
+        raise ProviderError("network", f"{what}: no se pudo conectar con Anthropic.")
+    except anthropic.APIStatusError as exc:
+        kind = "network" if exc.status_code >= 500 else "bad_response"
+        raise ProviderError(kind, f"{what}: Anthropic respondió {exc.status_code}. {exc.message}", http_status=exc.status_code)
 
 
 def _auth(secret: str | None) -> dict:
@@ -16,6 +53,9 @@ def _auth(secret: str | None) -> dict:
 
 def list_models(conn: dict, secret: str | None) -> list[str]:
     provider, url = conn["provider"], conn["base_url"]
+    if provider == "anthropic":
+        client = _claude(conn, secret)
+        return sorted(m.id for m in _claude_call("Listar modelos", lambda: list(client.models.list())))
     with base.client(min(conn.get("timeout_s") or 30, 30)) as cli:
         if provider in OPENAI_STYLE:
             data = base.json_body(base.send(cli, "GET", f"{url}/models", "Listar modelos", headers=_auth(secret)), "Listar modelos")
@@ -39,6 +79,18 @@ def chat(conn: dict, secret: str | None, system: str, user: str, *, json_mode: b
         raise ProviderError("config", "La conexión no tiene un modelo seleccionado.")
     max_tokens = int(max_tokens or conn.get("max_tokens") or 2048)
     what = f"Texto ({conn.get('name') or provider})"
+    if provider == "anthropic":
+        client = _claude(conn, secret)
+        content = user if not images else [{"type": "image", "source": {"type": "base64", "media_type": m, "data": b}} for m, b in images] + [{"type": "text", "text": user}]
+        # En los modelos actuales el razonamiento consume tokens de salida: un tope bajo cortaría la respuesta. No se envía temperatura (ya no se admite).
+        msg = _claude_call(what, lambda: client.messages.create(model=model, max_tokens=max(max_tokens, 16000), system=system,
+                                                                 messages=[{"role": "user", "content": content}]))
+        if msg.stop_reason == "refusal":
+            raise ProviderError("bad_response", f"{what}: el modelo declinó la solicitud por sus salvaguardas. No se cambió a otro modelo automáticamente.")
+        text = "".join(b.text for b in msg.content if b.type == "text")
+        if msg.stop_reason == "max_tokens" and not text:
+            raise ProviderError("bad_response", f"{what}: la respuesta se cortó por el máximo de tokens.")
+        return LLMResult(text, int(msg.usage.input_tokens or 0), int(msg.usage.output_tokens or 0), msg.model)
     with base.client(conn.get("timeout_s") or 60) as cli:
         if provider in OPENAI_STYLE:
             content = user if not images else [{"type": "text", "text": user}] + [

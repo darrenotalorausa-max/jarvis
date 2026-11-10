@@ -146,6 +146,12 @@ KINDS: dict[str, dict] = {
         F("verdict", "Decisión", "select", options=["continuar", "corregir", "detener", "ampliar"], required=True),
         F("hypothesis", "Hipótesis", "textarea", required=True), F("limit", "Límite (dinero, tiempo o muestras)"),
         F("window", "Ventana de evaluación"), F("evidence", "Evidencia y fuente del dato", "textarea"), F("review_date", "Fecha de revisión", "date")]},
+    "monitor": {"label": "Monitor", "plural": "Monitores proactivos", "module": "negocios", "statuses": ["activo", "pausado"], "free_merge": True, "fields": [
+        F("type", "Qué vigila", "select", options=["tareas_vencidas", "vencimientos", "suscripciones", "presupuesto", "clipping", "trabajos_fallidos", "por_aprobar", "sitio_web", "resumen_diario"], required=True),
+        F("every_hours", "Cada cuántas horas", "number"), F("url", "URL (solo para «sitio web»)", "url"), F("days", "Días de antelación (vencimientos)", "number"),
+        F("hour", "Hora del resumen diario (0–23)", "number"), F("notify", "Avisar al celular", "bool"), F("last_run", "Última ejecución"), F("last_result", "Último resultado")]},
+    "alert": {"label": "Alerta", "plural": "Alertas", "module": "negocios", "statuses": ["nueva", "vista", "resuelta"], "fields": [
+        F("type", "Tipo"), F("detected", "Detectada"), F("monitor_id", "Monitor", "ref", ref="monitor"), F("notes", "Notas", "textarea")]},
     # --- Segundo cerebro
     "note": {"label": "Nota", "plural": "Notas", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
         F("body", "Contenido", "textarea"), F("tags", "Etiquetas", "tags"), F("source", "Fuente o enlace"), F("area", "Área", "select", options=["mente", "cuerpo", "espiritu", "economia", "negocio", "otra"])]},
@@ -360,6 +366,8 @@ def update(record_id: str, space_id: str, patch: dict) -> dict:
     data = rec["data"]
     if "data" in patch:
         data = patch["data"] if spec.get("free_data") else {**rec["data"], **validate(rec["kind"], patch["data"], partial=True)}
+        if spec.get("free_merge") and "seen" in patch["data"]:
+            data["seen"] = patch["data"]["seen"]
         sets.append("data=?")
         params.append(dumps(data))
     for col in ("project_id", "brand_id"):

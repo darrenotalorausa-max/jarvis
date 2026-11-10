@@ -19,6 +19,14 @@ PROVIDERS = {
     "gemini": {"label": "Gemini Developer API", "base_url": "https://generativelanguage.googleapis.com/v1beta", "needs_secret": True,
                "local": False, "capabilities": ["texto", "extraccion"], "optional": ["vision"],
                "help": "Clave de Google AI Studio. Los modelos, cuotas y condiciones dependen de tu cuenta."},
+    "anthropic": {"label": "Claude (API de Anthropic)", "base_url": "https://api.anthropic.com", "needs_secret": True, "local": False,
+                  "capabilities": ["texto", "extraccion"], "optional": ["vision"],
+                  "help": "Clave de API de la consola de Anthropic (de pago por uso). Una suscripción de Claude.ai no incluye API."},
+    "openai": {"label": "ChatGPT (API de OpenAI)", "base_url": "https://api.openai.com/v1", "needs_secret": True, "local": False,
+               "capabilities": ["texto", "extraccion"], "optional": ["vision", "transcripcion"],
+               "help": "Clave de API de platform.openai.com (de pago por uso). ChatGPT Plus no incluye API."},
+    "api": {"label": "Conector universal (cualquier API REST)", "base_url": "", "needs_secret": False, "local": False,
+            "capabilities": ["api"], "optional": [], "help": "Conecta cualquier servicio con API: elige una plantilla o define tus propias acciones. Las acciones de escritura requieren tu aprobación."},
     "groq": {"label": "Groq", "base_url": "https://api.groq.com/openai/v1", "needs_secret": True, "local": False,
              "capabilities": ["texto", "extraccion"], "optional": ["transcripcion", "vision"],
              "help": "API con formato OpenAI. La transcripción requiere indicar un modelo de transcripción disponible en tu cuenta."},
@@ -137,6 +145,11 @@ def _validate(data: dict, existing: dict | None) -> dict:
         raise ValueError("Política de datos no válida.")
     if "options" in out and not isinstance(out["options"], dict):
         raise ValueError("Opciones no válidas.")
+    if provider == "api" and "options" in out:
+        from . import connectors
+        out["options"] = connectors.validate_options(out["options"])
+        if not (out.get("base_url") or (existing or {}).get("base_url")):
+            raise ValueError("Indica la URL base de la API.")
     if not existing and not (out.get("name") or "").strip():
         out["name"] = spec["label"]
     return out
@@ -229,7 +242,10 @@ def test(conn_id: str) -> dict:
         if spec["needs_secret"] and not secret and not is_local(conn):
             raise ProviderError("config", "Falta la credencial.")
         p = conn["provider"]
-        if p in ("ollama", "gemini", "groq", "openai_compat"):
+        if p == "api":
+            from . import connectors
+            detail = connectors.test(conn)
+        elif p in ("ollama", "gemini", "groq", "openai_compat", "anthropic", "openai"):
             names = llm.list_models(conn, secret)
             if conn.get("model"):
                 if names and conn["model"] not in names:

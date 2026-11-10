@@ -18,7 +18,37 @@ def _port_free(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) != 0
 
 
+def _desktop(server, url: str) -> bool:
+    """Abre Jarvis en una ventana propia de aplicación (pywebview: WebView2 en Windows, WebKit en macOS).
+    Devuelve False si no está disponible, para caer al navegador."""
+    try:
+        import webview
+    except Exception:
+        print("[Jarvis] La ventana de aplicación no está disponible en este equipo (falta pywebview); se abre en el navegador.")
+        return False
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    for _ in range(100):
+        if server.started:
+            break
+        time.sleep(0.1)
+    try:
+        webview.create_window("Jarvis OS", url, width=1480, height=920, min_size=(980, 640), background_color="#060a10")
+        webview.start()
+    except Exception as exc:
+        print(f"[Jarvis] No se pudo abrir la ventana de aplicación ({type(exc).__name__}); se abre en el navegador.")
+        webbrowser.open(url)
+        try:
+            thread.join()
+        except KeyboardInterrupt:
+            pass
+    server.should_exit = True
+    thread.join(timeout=8)
+    return True
+
+
 def main() -> int:
+    app_mode = "--app" in sys.argv
     config.ensure_dirs()
     applied = db.migrate()
     host, port = config.host(), config.port()
@@ -53,14 +83,18 @@ def main() -> int:
 
     db.set_setting("worker_heartbeat", time.time())
     threading.Thread(target=watch, daemon=True).start()
-    if not os.environ.get("JARVIS_NO_BROWSER"):
-        threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-    print(f"[Jarvis] Abierto en {url}  (Ctrl+C para detener)")
     import uvicorn
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s",
                         handlers=[logging.FileHandler(config.logs_dir() / "api.log", encoding="utf-8")])
+    server = uvicorn.Server(uvicorn.Config("jarvis.api:app", host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3))
     try:
-        uvicorn.run("jarvis.api:app", host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3)
+        if app_mode and _desktop(server, url):
+            pass  # la ventana se cerró: se detiene todo abajo
+        else:
+            if not os.environ.get("JARVIS_NO_BROWSER"):
+                threading.Timer(1.5, lambda: webbrowser.open(url)).start()
+            print(f"[Jarvis] Abierto en {url}  (Ctrl+C para detener)")
+            server.run()
     finally:
         stop.set()
         db.set_setting("worker_heartbeat", 0)

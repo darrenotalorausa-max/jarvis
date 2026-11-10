@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, Up
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 
-from . import access, assistant, backup, business, life, config, connections, db, economy, files, jobs, library, notify, records, review, router, secrets_store
+from . import access, assistant, backup, business, connectors, imports, life, monitors, scripture, config, connections, db, economy, files, jobs, library, notify, records, review, router, secrets_store
 from .handlers import clipping as clipping_h, opportunities as opp_h, video as video_h
 from .jobs import JobError
 from .providers.base import ProviderError
@@ -27,7 +27,7 @@ AI_POLICIES = {"solo_local": "Solo proveedores locales", "nube_permitida": "Nube
 JOB_TYPES = {
     "opportunity_research": "Investigación de oportunidades", "lead_search": "Búsqueda de leads", "lead_proposal": "Propuesta B2B",
     "content_batch": "Lote de contenido", "video_transcribe": "Transcripción de video", "video_suggest": "Sugerencia de momentos",
-    "video_render": "Exportación de video", "shopify_package": "Paquete Shopify", "clipping_import_url": "Importar campaña de clipping",
+    "video_render": "Exportación de video", "shopify_package": "Paquete Shopify", "clipping_import_url": "Importar campaña de clipping", "connector_action": "Acción en una app conectada", "study_plan": "Ruta de estudio",
     "external_export": "Envío externo",
 }
 SETTINGS_KEYS = {"user_name", "allow_paid", "onboarded", "voice", "min_cpm", "worker_concurrency", "business_types", "agents_paused"}
@@ -40,24 +40,48 @@ def _allowed_hosts() -> set[str]:
 
 @app.middleware("http")
 async def guard(request: Request, call_next):
-    """Desde este equipo: validación de Host y Origin (DNS rebinding y peticiones de otras webs).
-    Desde otro dispositivo (solo si se activó el acceso en red): además, sesión iniciada con el código de acceso."""
+    """Desde este equipo: validación de Host y Origin. Desde otro dispositivo (solo con el acceso en red activado):
+    sesión del propietario (código) o de un usuario con rol, y lista blanca de rutas y espacios para los roles limitados."""
     host = request.headers.get("host", "")
     client = request.client.host if request.client else "127.0.0.1"
     remote = not access.is_loopback(client)
-    path = request.url.path
-    if remote:
+    path, method = request.url.path, request.method
+    user = {"id": "propietario", "username": "propietario", "role": "propietario", "spaces": None}
+    if path.startswith("/api/ext/"):
+        if not access.valid_api_token(request.headers.get("authorization")):
+            return JSONResponse({"detail": "Token de API no válido."}, status_code=401)
+        if remote and not access.enabled():
+            return JSONResponse({"detail": "El acceso desde otros dispositivos no está activado."}, status_code=403)
+    elif remote:
         if not access.enabled():
             return JSONResponse({"detail": "El acceso desde otros dispositivos no está activado."}, status_code=403)
-        if path.startswith("/api/") and path not in ("/api/login", "/api/health") and not access.valid_cookie(request.cookies.get(access.COOKIE)):
-            return JSONResponse({"detail": "Introduce el código de acceso.", "kind": "login"}, status_code=401)
+        if path.startswith("/api/") and path not in ("/api/login", "/api/health"):
+            user = access.session_user(request.cookies.get(access.COOKIE))
+            if not user:
+                return JSONResponse({"detail": "Inicia sesión.", "kind": "login"}, status_code=401)
+            if user["role"] != "propietario":
+                if not access.allowed(user, method, path):
+                    return JSONResponse({"detail": "Tu rol no tiene acceso a esta función."}, status_code=403)
+                space, body = request.query_params.get("space"), None
+                if method in ("POST", "PATCH") and "json" in request.headers.get("content-type", ""):
+                    try:
+                        body = json.loads(await request.body() or b"{}")
+                    except ValueError:
+                        body = None
+                    if not isinstance(body, dict):
+                        return JSONResponse({"detail": "Cuerpo no válido."}, status_code=400)
+                    space = body.get("space") or space
+                free = path == "/api/bootstrap" or path.startswith("/api/library") or path == "/api/assistant/tools"
+                if (not free and space not in user["spaces"]) or (body is not None and not access.body_ok(user, path, body)):
+                    return JSONResponse({"detail": "No tienes acceso a ese espacio o acción."}, status_code=403)
     elif host not in _allowed_hosts():
         return JSONResponse({"detail": "Host no permitido."}, status_code=403)
     origin = request.headers.get("origin")
-    if origin and request.method not in ("GET", "HEAD", "OPTIONS"):
+    if origin and method not in ("GET", "HEAD", "OPTIONS"):
         ok = origin.split("://", 1)[-1] == host if remote else origin.split("://", 1)[-1] in _allowed_hosts()
         if not ok:
             return JSONResponse({"detail": "Origen no permitido."}, status_code=403)
+    request.state.user = user
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
@@ -69,9 +93,20 @@ async def guard(request: Request, call_next):
 @app.post("/api/login")
 def login(request: Request, body: dict = Body(...)):
     client = request.client.host if request.client else "127.0.0.1"
-    token = access.login(client, str(body.get("code") or ""))
+    token = access.login_user(client, str(body["user"]), str(body.get("password") or "")) if body.get("user") else access.login(client, str(body.get("code") or ""))
     resp = JSONResponse({"ok": True})
-    resp.set_cookie(access.COOKIE, token, httponly=True, samesite="strict", max_age=30 * 24 * 3600)
+    resp.set_cookie(access.COOKIE, token, httponly=True, samesite="strict", max_age=14 * 24 * 3600)
+    return resp
+
+
+@app.post("/api/logout")
+def logout(request: Request):
+    cookie = request.cookies.get(access.COOKIE) or ""
+    if cookie.startswith("u."):
+        import hashlib
+        db.execute("DELETE FROM sessions WHERE token_hash=?", (hashlib.sha256(cookie[2:].encode()).hexdigest(),))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(access.COOKIE)
     return resp
 
 
@@ -124,7 +159,16 @@ def _worker_alive() -> bool:
 
 
 @app.get("/api/bootstrap")
-def bootstrap():
+def bootstrap(request: Request):
+    user = getattr(request.state, "user", None) or {"username": "propietario", "role": "propietario", "spaces": None}
+    out = _bootstrap()
+    out["user"] = {"username": user["username"], "role": user["role"]}
+    if user["spaces"] is not None:
+        out["spaces"] = [sp for sp in out["spaces"] if sp["id"] in user["spaces"]]
+    return out
+
+
+def _bootstrap():
     return {
         "version": config.APP_VERSION, "settings": {k: db.get_setting(k) for k in SETTINGS_KEYS},
         "spaces": db.query("SELECT * FROM spaces ORDER BY created_at"), "space_kinds": SPACE_KINDS, "ai_policies": AI_POLICIES,
@@ -132,6 +176,7 @@ def bootstrap():
         "deliverable_kinds": {k: v["label"] for k, v in review.KINDS.items()}, "deliverable_statuses": review.STATUSES,
         "job_types": JOB_TYPES, "job_statuses": jobs.STATUS_LABELS, "secrets_backend": secrets_store.backend(),
         "ffmpeg": video_h.ffmpeg_status(), "video": {"presets": list(video_h.PRESETS), "framings": video_h.FRAMINGS, "modes": video_h.MODES},
+        "connector_presets": connectors.catalog(), "roles": access.ROLES, "monitor_types": monitors.TYPES,
         "worker_alive": _worker_alive(), "local_transcription": __import__("jarvis.providers.voice", fromlist=["x"]).local_whisper_available(),
     }
 
@@ -614,6 +659,173 @@ def video_manifest(project_id: str, space: str):
     data = video_h.validate_project(rec["data"], space)
     outs = [f for f in (files.get(i, space) for i in rec["data"].get("outputs") or []) if f]
     return JSONResponse(video_h.build_manifest(rec, data, space, outs), headers={"Content-Disposition": 'attachment; filename="manifiesto.json"'})
+
+
+# ---------- Apps conectadas (conector universal), OAuth, usuarios, token externo y monitores
+
+def _api_conn(conn_id: str) -> dict:
+    conn = connections.get(conn_id)
+    if not conn or conn["provider"] != "api":
+        raise KeyError(conn_id)
+    conn["options"] = connectors.validate_options(conn["options"])
+    return conn
+
+
+@app.post("/api/apps/{conn_id}/run")
+def app_run(conn_id: str, body: dict = Body(...)):
+    """Ejecuta una acción de LECTURA. Las de escritura se rechazan aquí: van por /request con aprobación."""
+    conn = _api_conn(conn_id)
+    if not conn["enabled"] or not conn["terms_accepted"]:
+        raise ValueError("Habilita la conexión y acepta las condiciones del servicio antes de usarla.")
+    try:
+        return connectors.execute(conn, body.get("action") or "", body.get("variables") or {})
+    except ProviderError as exc:
+        connections.record_error(conn, exc)
+        raise
+
+
+@app.post("/api/apps/{conn_id}/request")
+def app_request(conn_id: str, body: dict = Body(...)):
+    """Solicita una acción de ESCRITURA: crea un trabajo que queda esperando tu aprobación con la petición exacta."""
+    conn = _api_conn(conn_id)
+    _space(body.get("space"))
+    action = connectors.action_of(conn, body.get("action") or "")
+    preview = connectors.build(conn, action, body.get("variables") or {})
+    job, created = jobs.enqueue(body["space"], "connector_action", f"{conn['name']}: {action['label']}",
+                                {"connection_id": conn_id, "action_id": action["id"], "variables": body.get("variables") or {}}, max_attempts=1)
+    return {"job": job, "created": created, "preview": preview}
+
+
+@app.get("/api/apps/pending/{job_id}")
+def app_pending(job_id: str):
+    job = jobs.get(job_id)
+    if not job or job["type"] != "connector_action":
+        raise KeyError(job_id)
+    conn = _api_conn(job["params"]["connection_id"])
+    return {"job": job, "connection": conn["name"], "preview": connectors.build(conn, connectors.action_of(conn, job["params"]["action_id"]), job["params"].get("variables") or {})}
+
+
+@app.post("/api/apps/pending/{job_id}/approve")
+def app_approve(job_id: str, body: dict = Body(default={})):
+    """Aprobación de un solo uso, ligada a la petición exacta (conexión, URL, método y cuerpo) y con caducidad."""
+    job = jobs.get(job_id)
+    if not job or job["type"] != "connector_action" or job["status"] != "waiting_approval":
+        raise ValueError("El trabajo no está esperando aprobación.")
+    conn = _api_conn(job["params"]["connection_id"])
+    from .util import iso_in
+    db.set_setting(f"action_approval:{job_id}", {"hash": connectors.request_hash(conn, job["params"]["action_id"], job["params"].get("variables") or {}),
+                                                 "user": _user(), "expires_at": iso_in(float(body.get("expires_hours") or 1) * 3600)})
+    db.audit("accion_externa.aprobar", job_id, {"conexion": conn["id"], "accion": job["params"]["action_id"]}, actor=_user())
+    return jobs.retry(job_id)
+
+
+@app.post("/api/oauth/start")
+def oauth_start(body: dict = Body(...)):
+    conn = _api_conn(body.get("connection_id") or "")
+    return {"url": connectors.oauth_start(conn), "redirect_uri": connectors.redirect_uri()}
+
+
+@app.get("/api/oauth/callback")
+def oauth_callback(state: str = "", code: str = "", error: str = ""):
+    if error or not code:
+        return PlainTextResponse(f"La autorización no se completó ({redact(error) or 'sin código'}). Puedes cerrar esta pestaña y volver a intentarlo desde Jarvis.", status_code=400)
+    conn = connectors.oauth_finish(state, code)
+    return PlainTextResponse(f"Conexión «{conn['name']}» autorizada. Ya puedes cerrar esta pestaña y volver a Jarvis.")
+
+
+@app.get("/api/users")
+def users_list():
+    return access.list_users()
+
+
+@app.post("/api/users")
+def users_create(body: dict = Body(...)):
+    return access.save_user(body)
+
+
+@app.patch("/api/users/{user_id}")
+def users_update(user_id: str, body: dict = Body(...)):
+    return access.save_user(body, user_id)
+
+
+@app.delete("/api/users/{user_id}")
+def users_delete(user_id: str):
+    access.delete_user(user_id)
+    return {"ok": True}
+
+
+@app.post("/api/token")
+def api_token():
+    """Genera (o rota) el token para programas externos. Solo se muestra esta vez."""
+    return {"token": access.new_api_token(), "nota": "Guárdalo ahora: no volverá a mostrarse. Generar otro invalida el anterior."}
+
+
+@app.post("/api/ext/command")
+def ext_command(body: dict = Body(...)):
+    """Entrada para otros programas (n8n, atajos, scripts): una orden en texto para Jarvis. Solo herramientas internas."""
+    spaces = db.query("SELECT * FROM spaces WHERE archived=0 AND kind!='personal' ORDER BY created_at")
+    space = next((sp for sp in spaces if sp["id"] == body.get("space") or sp["name"].lower() == str(body.get("space") or "").lower()), spaces[0] if spaces and not body.get("space") else None)
+    if not space:
+        raise ValueError("Indica un espacio de negocio válido.")
+    out = assistant.handle(space["id"], str(body.get("text") or ""), "texto")
+    db.audit("orden_externa", "", {"herramienta": out.get("tool")}, actor="token_api")
+    return {"reply": out["reply"], "tool": out.get("tool"), "job": out.get("job"), "error": bool(out.get("error"))}
+
+
+@app.post("/api/monitors/run")
+def monitors_run(body: dict = Body(...)):
+    mon = records.get(body.get("id") or "", body.get("space"))
+    if not mon or mon["kind"] != "monitor":
+        raise KeyError("monitor")
+    return monitors.run_monitor(mon, force=bool(body.get("force")))
+
+
+# ---------- Importadores, tutor, notas y texto bíblico
+
+@app.post("/api/import/health")
+def import_health(space: str = Form(...), file: UploadFile = File(...), days: int = Form(90), commit: str = Form("")):
+    _space(space)
+    return imports.apple_health(file.file.read(), space, days=max(1, min(days, 3650)), commit=commit == "si")
+
+
+@app.post("/api/import/ofx")
+def import_ofx(space: str = Form(...), file: UploadFile = File(...), commit: str = Form(""), project_id: str = Form("")):
+    _space(space)
+    raw = file.file.read(20_000_000)
+    return imports.ofx(raw.decode("utf-8", "replace") if b"\xef\xbb\xbf" in raw[:3] or raw.isascii() else raw.decode("latin-1"), space, commit=commit == "si", project_id=project_id or None)
+
+
+@app.post("/api/life/ask")
+def life_ask(body: dict = Body(...)):
+    _space(body.get("space"))
+    from .handlers import study
+    return study.ask_notes(body["space"], str(body.get("question") or "")[:500])
+
+
+@app.get("/api/scripture")
+def scripture_list():
+    return scripture.translations()
+
+
+@app.post("/api/scripture")
+def scripture_load(name: str = Form(...), title: str = Form(""), license: str = Form(""), file: UploadFile = File(...)):
+    return scripture.load(name, file.file.read(40_000_000).decode("utf-8", "replace"), title, license)
+
+
+@app.delete("/api/scripture/{name}")
+def scripture_remove(name: str):
+    scripture.remove(name)
+    return {"ok": True}
+
+
+@app.get("/api/scripture/{name}/passage")
+def scripture_passage(name: str, ref: str):
+    return scripture.passage(name, ref)
+
+
+@app.get("/api/scripture/{name}/search")
+def scripture_search(name: str, q: str):
+    return scripture.search(name, q)
 
 
 # ---------- Biblioteca de conocimiento y Centro de negocios

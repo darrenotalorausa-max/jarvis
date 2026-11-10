@@ -29,7 +29,7 @@ def handler(type_: str):
 
 
 def load_handlers() -> None:
-    from .handlers import opportunities, leads, content, video, shopify, clipping, exports  # noqa: F401
+    from .handlers import opportunities, leads, content, video, shopify, clipping, exports, apps, study  # noqa: F401
 
 
 class JobCtx:
@@ -171,6 +171,7 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
     last_recover = time.monotonic()
     last_beat = 0.0
     last_poll = 0.0
+    last_mon = time.monotonic() - 45
     log.info("Worker %s iniciado (concurrencia %d)", worker_id, max_concurrent)
     while not stop.is_set():
         for jid in [j for j, (th, _) in running.items() if not th.is_alive()]:
@@ -185,6 +186,13 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
                 notify.poll_commands()
             except Exception:
                 log.warning("Fallo al leer órdenes remotas")
+        if time.monotonic() - last_mon > 60:
+            last_mon = time.monotonic()
+            try:
+                from . import monitors
+                monitors.run_due()
+            except Exception:
+                log.warning("Fallo al ejecutar monitores")
         if time.monotonic() - last_beat > 5:
             db.set_setting("worker_heartbeat", time.time())
             last_beat = time.monotonic()
