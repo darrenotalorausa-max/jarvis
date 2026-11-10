@@ -9,6 +9,7 @@ import { Connections } from "./views/Connections";
 import { System } from "./views/System";
 import { Business } from "./views/CommandCenter";
 import { Library } from "./views/Library";
+import { Apps } from "./views/Apps";
 import { api } from "./api";
 import { useData } from "./store";
 import { Modal } from "./components/ui";
@@ -29,11 +30,12 @@ const NAV: [string, string, string][] = [
   ["personal", "Espacio personal", "M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8M4 20a8 8 0 0 1 16 0"],
   ["biblioteca", "Biblioteca", "M5 4h5v16H5zM10 4h5v16h-5zM16 6l3-1l3 14l-3 1z"],
   ["conexiones", "Conexiones", "M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"],
+  ["apps", "Apps conectadas", "M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5zM16 13v6M13 16h6"],
   ["sistema", "Trabajos, uso y diagnóstico", "M4 6h16M4 12h10M4 18h13M19 12l2 2l-2 2"],
 ];
 const VIEWS: Record<string, () => JSX.Element> = {
   comando: Command, oportunidades: Opportunities, leads: Leads, contenido: Content, video: Video, shopify: Shopify, clipping: Clipping,
-  negocios: Business, biblioteca: Library, revision: Review, proyectos: Projects, operaciones: Operations, personal: Personal, conexiones: Connections, sistema: System,
+  negocios: Business, biblioteca: Library, apps: Apps, revision: Review, proyectos: Projects, operaciones: Operations, personal: Personal, conexiones: Connections, sistema: System,
 };
 const last = { get: () => { try { return localStorage.getItem("jarvis.last") || "oportunidades"; } catch { return "oportunidades"; } }, set: (v: string) => { try { localStorage.setItem("jarvis.last", v); } catch { /* sin almacenamiento */ } } };
 
@@ -42,7 +44,10 @@ export function App() {
   const [palette, setPalette] = useState(false);
   const [sound, setSoundState] = useState(soundOn());
   const paused = !!boot.settings.agents_paused;
-  const current = VIEWS[route[0]] ? route[0] : "comando";
+  const role = boot.user?.role || "propietario";
+  const visible = NAV.filter(([id]) => role === "propietario" || (role === "cliente" ? id === "revision" : !["conexiones", "apps", "sistema", "personal", "comando"].includes(id)));
+  const home = role === "propietario" ? "comando" : visible[0][0];
+  const current = VIEWS[route[0]] && visible.some(([id]) => id === route[0]) ? route[0] : home;
   const View = VIEWS[current];
   const command = current === "comando";
   useEffect(() => { if (!command) last.set(route.join("/")); }, [route, command]);
@@ -68,15 +73,16 @@ export function App() {
         <span className="top__spacer" />
         {running > 0 && <button className="pill pill--ok" onClick={() => nav("sistema")}><i />{running} en ejecución</button>}
         {waiting > 0 && <button className="pill pill--warn" onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
+        {role !== "propietario" && <button className="pill" onClick={async () => { await api("/logout", { method: "POST" }); location.reload(); }}>{boot.user.username} · salir</button>}
         <button className="pill" onClick={() => setPalette(true)} title="Buscar módulos y guías (Ctrl K)">Buscar <span className="mono">Ctrl K</span></button>
-        <button className={`pill${paused ? " pill--warn" : ""}`} aria-pressed={paused} title={paused ? "Reanudar todos los agentes" : "Pausar todos los agentes"}
-          onClick={async () => { await run(api("/settings", { method: "PATCH", body: { agents_paused: !paused } }), paused ? "Agentes reanudados" : "Agentes en pausa: no se inicia ningún trabajo nuevo"); reload(); }}><i />{paused ? "Agentes en pausa" : "Agentes activos"}</button>
+        {role === "propietario" && <button className={`pill${paused ? " pill--warn" : ""}`} aria-pressed={paused} title={paused ? "Reanudar todos los agentes" : "Pausar todos los agentes"}
+          onClick={async () => { await run(api("/settings", { method: "PATCH", body: { agents_paused: !paused } }), paused ? "Agentes reanudados" : "Agentes en pausa: no se inicia ningún trabajo nuevo"); reload(); }}><i />{paused ? "Agentes en pausa" : "Agentes activos"}</button>}
         <button className="pill" aria-pressed={sound} title="Sonidos de la interfaz" onClick={() => { setSound(!sound); setSoundState(!sound); }}>{sound ? "Sonido sí" : "Sonido no"}</button>
         <label className="sr" htmlFor="espacio">Espacio de trabajo</label>
         <div><Select value={space.id} onChange={setSpace} options={boot.spaces.filter((s) => !s.archived).map((s) => [s.id, `${s.name} · ${boot.space_kinds[s.kind]}`])} /></div>
       </header>
       <nav className="nav" aria-label="Módulos">
-        {NAV.map(([id, text, d]) => (
+        {visible.map(([id, text, d]) => (
           <a key={id} href={`#/${id}`} aria-current={current === id ? "page" : undefined} title={text} aria-label={text}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg><span>{text}</span>
           </a>
@@ -92,7 +98,9 @@ function Palette({ onClose }: { onClose: () => void }) {
   const { nav } = useApp();
   const [q, setQ] = useState("");
   const hits = useData<any[]>(() => (q.trim().length > 1 ? api("/library/search", { query: { q } }) : Promise.resolve([])), [q]);
-  const mods = NAV.filter(([, text]) => !q.trim() || text.toLowerCase().includes(q.trim().toLowerCase()));
+  const { boot } = useApp();
+  const role = boot.user?.role || "propietario";
+  const mods = NAV.filter(([id]) => role === "propietario" || (role === "cliente" ? id === "revision" : !["conexiones", "apps", "sistema", "personal", "comando"].includes(id))).filter(([, text]) => !q.trim() || text.toLowerCase().includes(q.trim().toLowerCase()));
   const go = (route: string) => { nav(route); onClose(); };
   return (
     <Modal title="Ir a…" onClose={onClose}>

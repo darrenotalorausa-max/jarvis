@@ -12,7 +12,7 @@ hace llamadas externas ni gasta dinero.
 
 ## Resultado de la última ejecución (2026-11-10, Linux, Python 3.13, Node 22, FFmpeg 6.1)
 
-- `pytest`: **70 superadas, 0 fallidas** (≈ 25 s).
+- `pytest`: **94 superadas, 0 fallidas** (≈ 25 s).
 - Recorrido en navegador: **completado sin problemas** (sin errores de consola, sin respuestas 5xx, sin desbordamiento en móvil).
 - Instalación desde un clon limpio con `scripts/setup.sh` y arranque con `scripts/start.sh`: **correcta** (API responde y sirve la interfaz; Ctrl+C detiene API y worker).
 - Lanzadores de Windows: **no ejecutados**.
@@ -42,6 +42,11 @@ hace llamadas externas ni gasta dinero.
 | Comandos Jarvis → herramientas | `test_flows::test_jarvis_commands_run_registered_tools`; en navegador: paso «comando» |
 | Fallback de voz a texto | `test_flows::test_voice_falls_back_to_text` |
 | Secretos | `test_core::test_secrets_never_returned_nor_stored_in_db`, respaldo sin secretos |
+| Escritura externa solo con aprobación exacta | `test_apps` (conector: lectura directa, escritura rechazada sin aprobación, aprobación de un solo uso ligada a la petición); en navegador: paso «apps» |
+| Roles y aislamiento por usuario | `test_apps` (equipo y cliente: rutas y espacios permitidos); en navegador: paso «usuarios con rol» |
+| Monitores sin repetir hallazgos | `test_apps`; en navegador: paso «monitores» |
+| Importadores sin duplicados | `test_apps` (Apple Health, OFX); en navegador: paso «personal: extracto bancario…» |
+| Sin modelo permitido no se envían notas | En navegador: «preguntas a las notas sin IA» |
 | CRUD personal | `test_core::test_personal_modules_crud_archive_export`; en navegador: paso «personal» |
 
 ## Comprobación visual (navegador real)
@@ -54,7 +59,10 @@ incorrecto tras el primer inicio y registro de manejadores del worker al ejecuta
 
 ## Pendiente de comprobar (requiere tu entorno)
 
-1. `START_JARVIS.cmd` en Windows 10/11 con y sin requisitos instalados.
+1. `SETUP_JARVIS.cmd` y `START_JARVIS.cmd` en Windows 10/11 con y sin requisitos instalados; acceso directo «Jarvis OS» y ventana de aplicación.
 2. Cada proveedor con tu clave: «Guardar y probar conexión» y un trabajo real pequeño.
 3. Voz con micrófono en Chrome o Edge.
 4. Instalar el paquete Shopify en un duplicado de tu tema y probar móvil, variantes y carrito.
+5. Cada app conectada con tu cuenta: «Probar» y una acción de lectura; OAuth de Google.
+6. `docker compose up -d --build` en tu servidor.
+7. Servidor MCP desde tu cliente (Claude Desktop u otro).

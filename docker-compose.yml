@@ -1,0 +1,18 @@
+# Servidor 24/7 opcional. Antes de iniciar, define JARVIS_ACCESS_CODE (10 caracteres o más) en un archivo .env junto a este.
+# Guía: Biblioteca → Conectar Jarvis → «Servidor 24-7 y usuarios con rol».
+services:
+  jarvis:
+    build: .
+    restart: unless-stopped
+    environment:
+      JARVIS_ACCESS_CODE: ${JARVIS_ACCESS_CODE:?Define JARVIS_ACCESS_CODE en .env}
+    ports:
+      - "8765:8765"   # Publícalo solo detrás de una VPN o de un proxy con HTTPS; nunca directo a internet.
+    volumes:
+      - jarvis_data:/data
+      - jarvis_secrets:/secrets
+      - jarvis_skills:/app/content/mis-skills
+volumes:
+  jarvis_data:
+  jarvis_secrets:
+  jarvis_skills:

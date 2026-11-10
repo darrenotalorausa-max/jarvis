@@ -2,9 +2,9 @@
 
 Fecha: 2026-11-10 · Versión 0.1.0. Este documento distingue lo comprobado de lo que solo está escrito.
 
-**Cómo se comprobó:** 82 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
+**Cómo se comprobó:** 94 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
 y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una instalación limpia en Linux.
-**No se ha ejecutado nada en Windows ni contra proveedores reales** (no había credenciales ni acceso de red a ellos).
+**No se ha ejecutado nada en Windows ni contra proveedores o servicios reales** (no había credenciales ni acceso de red a ellos). Tampoco se pudo abrir la ventana de aplicación ni levantar Docker en el entorno de desarrollo.
 
 ## A. Implementado y probado
 
@@ -35,6 +35,15 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Vida (Health, Mind, Faith, Wealth OS) | 20 tipos de registro con crear, editar, archivar y exportar; tablero con promedios de sueño y ánimo, patrimonio neto por moneda, presupuesto, alertas de suscripciones y vencimientos; repaso espaciado de tarjetas |
 | Biblioteca y skills | 58 documentos (guías de conexión y de vida, tus 36 apuntes, modelos de negocio, atlas); búsqueda; carga de skills propias y su uso al generar contenido; bloqueo de rutas fuera de la biblioteca |
 | Gemma en la API de Gemini | Reintento compatible cuando el modelo rechaza instrucción de sistema o modo JSON |
+| Conector universal (Apps conectadas) | 14 plantillas + API personalizada; autenticación por token, cabecera, URL, Basic y OAuth 2.0 con renovación; lectura inmediata; escritura solo con aprobación de la petición exacta, de un solo uso y con caducidad; en navegador: crear app, leer, solicitar y rechazar. Todo contra servidores simulados o la propia API local |
+| Claude y ChatGPT por API | Adaptadores con respuestas simuladas: Claude con el SDK oficial, OpenAI por HTTP; rechazo del modelo → error visible, sin cambio silencioso de modelo |
+| Monitores proactivos | 9 reglas fijas sin IA, frecuencia, sin repetir hallazgos, tope diario de avisos, se detienen con la pausa global; en navegador: crear y ejecutar |
+| Usuarios con rol | Propietario, equipo y cliente; contraseñas con PBKDF2; sesiones; lista de rutas permitidas por rol y por espacio; los espacios personales nunca se comparten; en navegador: crear usuario |
+| Importadores | Apple Health (`export.zip`/`export.xml`: sueño, entrenamientos, pasos) y extractos OFX/QFX, ambos con vista previa y sin duplicar; OFX en navegador |
+| Tutor y preguntas a las notas | Ruta de estudio desde archivo (módulos, autoevaluación, tarjetas) y respuesta citando notas, con modelo simulado; sin modelo permitido no se envía nada (en navegador) |
+| Texto bíblico | Carga de una traducción aportada por el usuario (texto o JSON), pasaje por referencia y búsqueda; en navegador |
+| MCP y API externa | Servidor MCP por stdio (initialize, tools/list, tools/call) y órdenes con token rotatorio, limitados a herramientas internas de un espacio de negocio |
+| Apagado desde el panel | `POST /api/shutdown` detiene API y worker cuando se inició con el lanzador |
 | Instalación Unix | `scripts/setup.sh` + `scripts/start.sh` desde un clon limpio (ver ACCEPTANCE.md) |
 
 ## B. Implementado, sin comprobar con credenciales o entorno reales
@@ -55,6 +64,13 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Onda del núcleo con nivel real del micrófono | Implementada con Web Audio; sin probar con micrófono real |
 | Voz en el navegador (pulsar para hablar, lectura de respuestas) | El navegador de pruebas no ofrece reconocimiento ni micrófono. Probado solo el respaldo a texto y que el micrófono no aparece abierto |
 | Sección Shopify | Validada estructuralmente; **no instalada en una tienda ni en un tema real** |
+| Todas las plantillas de Apps conectadas | Escritas según la documentación pública de cada servicio. **Ninguna se ha probado con una cuenta real**: rutas, versiones de API y permisos pueden requerir ajuste |
+| OAuth con Google u otro proveedor real | Probado solo con un servidor de autorización simulado |
+| Claude y OpenAI reales | Sin clave ni red hacia ellos durante el desarrollo |
+| Ventana de aplicación (`--app`, pywebview) | Comprobado solo el respaldo: sin pywebview abre el navegador y el apagado funciona. **La ventana no se ha visto en ningún sistema.** El acceso directo de Windows (`scripts/windows/acceso_directo.ps1`) no se ha ejecutado |
+| Docker (`Dockerfile`, `docker-compose.yml`) | Escritos; **no construidos ni ejecutados** (sin servicio Docker en el entorno) |
+| Servidor MCP con un cliente real (Claude Desktop u otro) | Probado solo el protocolo con mensajes simulados |
+| Apple Health con una exportación real | Probado con un XML de ejemplo con la estructura documentada |
 | Calidad de los resultados con modelos reales | Los prompts no se han evaluado con ningún modelo real |
 
 ## C. Dependencia externa pendiente (la pones tú)
@@ -86,13 +102,13 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 
 ## E. No implementado
 
-- **Del superprompt DOOMSDAY:** importación del manual (falta el archivo), multiusuario con roles y espacios de clientes, sincronización local/nube y servidor 24/7, Docker Compose, conectores de Shopify (API), Meta Ads, TikTok, Instagram, YouTube, Google Drive/Sheets/Gmail, Notion, Cloudflare, GitHub, Stripe, PayPal, WooCommerce y Google Ads, monitores proactivos, agentes con memoria propia, aprobaciones desde Telegram, modo claro, calendario y sistema de plugins. Lo que sí existe está en la sección A.
-- **De los 20 módulos de vida:** integraciones con Apple Health, Health Connect o relojes (se cubre con CSV), pedidos a supermercados, escaneo de productos, alarmas, bloqueo de distracciones, tutor que convierta PDF o video en rutas de estudio, análisis del diario con IA, texto bíblico, concordancias y comentarios (Bible Study AI), conexión bancaria, simulación de inversiones y preguntas a tus notas con IA. Son registros, indicadores y guías; no asistentes con IA.
+- **Del superprompt DOOMSDAY:** importación del manual (falta el archivo), **sincronización entre una instalación local y otra en servidor** (son instalaciones separadas; se mueve con respaldo), conector de Google Ads (su API exige token de desarrollador), sincronización automática en segundo plano de los datos de las apps conectadas (las acciones se ejecutan a petición), agentes con memoria propia, aprobaciones desde Telegram, modo claro y calendario. **Sistema de plugins:** no existe un cargador de código de terceros; la extensión se hace con datos, no con código: acciones declarativas del conector universal, skills en la biblioteca, MCP y la API de órdenes.
+- **De los 20 módulos de vida:** sincronización en vivo con relojes o Health Connect (Apple Health se importa por archivo; el resto por CSV), pedidos a supermercados, escaneo de productos, alarmas, bloqueo de distracciones, tutor a partir de video, análisis del diario con IA, **texto bíblico y comentarios incluidos** (se carga la traducción que aporte el usuario; los comentarios van como notas), **conexión bancaria directa** (se importa el extracto OFX/QFX) y simulación de inversiones.
 
 - Envío de mensajes, publicación en redes, activación de campañas o cambios de presupuesto (excluido a propósito en esta versión).
-- Conexión con la API de Shopify (subida a tema borrador o copia): solo exportación ZIP. Tampoco un tema completo de tienda.
+- Subida del paquete Shopify a un tema por API: solo exportación ZIP (la plantilla de Shopify en Apps conectadas lee datos y crea productos en borrador con aprobación). Tampoco un tema completo de tienda.
 - Generación de imágenes o video por API: se entregan prompts y paquete de producción.
 - Exportación nativa a Premiere, Resolve u otros editores.
-- Integraciones bancarias, conciliación contable y conectores de analítica.
+- Agregación bancaria por API y conciliación contable.
 - Escucha permanente por palabra clave, clonación de voz.
-- Varios usuarios, permisos por persona y sincronización entre equipos.
+- Sincronización entre equipos y cifrado HTTPS propio (en red o servidor hay que ponerlo detrás de VPN o proxy).

@@ -15,7 +15,10 @@ ANTHROPIC_TRANSPORT = None
 
 def _claude(conn: dict, secret: str | None):
     """Cliente del SDK oficial de Anthropic. Los reintentos los gestiona el router de Jarvis (max_retries=0)."""
-    import anthropic
+    try:
+        import anthropic
+    except ImportError:
+        raise ProviderError("config", "Falta el componente de Claude en esta instalación. Ejecuta SETUP_JARVIS.cmd (o scripts/setup.sh) una vez y vuelve a probar.")
     kw = {"api_key": secret or "", "timeout": float(conn.get("timeout_s") or 120), "max_retries": 0}
     if conn.get("base_url") and conn["base_url"].rstrip("/") != "https://api.anthropic.com":
         kw["base_url"] = conn["base_url"]

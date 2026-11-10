@@ -6,6 +6,7 @@ import { RecordsPanel } from "../components/RecordsPanel";
 import { FileTable, UploadButton, useFiles, useRecords } from "../components/shared";
 import { Badge, Btn, Empty, ErrorBox, FieldRow, Modal, Panel, Rich, Select, Skeleton, Stat, Tabs, Text } from "../components/ui";
 import { fmtDate } from "../api";
+import { AskNotes, HealthImport, OfxImport, Scripture, StudyRoute } from "../components/LifeTools";
 
 function Head({ title, sub }: { title: string; sub: string }) {
   return <div className="page__head"><div><h1 className="page__title">{title}</h1><p className="page__sub">{sub}</p></div></div>;
@@ -142,6 +143,7 @@ export function Operations() {
           <ul className="list">{eco.data.suscripciones.map((s: any) => <li key={s.id}>{s.titulo} — {fmtNum(s.importe)} {s.moneda || ""} {s.contraparte ? `· ${s.contraparte}` : ""} {s.fecha ? `· ${s.fecha}` : ""}</li>)}</ul>
         </Panel>}
       </>}
+      {tab === "movimientos" && <OfxImport onDone={bump} />}
       {tab === "movimientos" && <RecordsPanel kind="transaction" columns={["type", "stage", "amount", "currency", "date", "counterparty"]} importable onChanged={bump} defaults={{ type: "ingreso", stage: "acordado" }}
         note="Cada movimiento cuenta una sola vez en su estado actual (acordado → facturado → cobrado). Cambia el estado económico al avanzar; no dupliques el movimiento. Los duplicados de un CSV se detectan por referencia externa o por fecha + importe + contraparte + concepto." />}
       {tab === "tiempo" && <RecordsPanel kind="time_entry" columns={["date", "hours", "owner"]} importable onChanged={bump} />}
@@ -360,11 +362,12 @@ export function Personal() {
         <RecordsPanel kind="wardrobe" columns={["category", "color", "season", "combos"]} note="Sube las fotos en Proyectos → Archivos y pega aquí el ID de cada una para tener tu armario digital." /></>}
       {cur === "salud" && <RecordsPanel kind="health_record" columns={["type", "date", "professional", "next_date"]} defaults={{ type: "cita" }}
         note="Tu archivo personal de citas, resultados, medicamentos y preguntas para el profesional. Jarvis no interpreta resultados ni sustituye un diagnóstico." />}
-      {cur === "actividad" && <RecordsPanel kind="activity" columns={["date", "type", "minutes", "sleep_hours"]} defaults={{ date: today() }} />}
+      {cur === "actividad" && <HealthImport onDone={() => setCardTick((n) => n + 1)} />}
+      {cur === "actividad" && <RecordsPanel key={"act" + cardTick} kind="activity" columns={["date", "type", "minutes", "sleep_hours"]} defaults={{ date: today() }} />}
 
-      {cur === "cerebro" && <><Guides items={[["mente", "Segundo cerebro - cómo usarlo"]]} />
-        <RecordsPanel kind="note" columns={["area", "tags", "body"]} quickAdd="Título de la nota (una idea, afirmada)…" defaults={{ area: "mente" }} note="Busca por palabra en el cuadro de arriba. Las notas son privadas: no entran en ningún prompt." /></>}
-      {cur === "aprendizaje" && <><Guides items={[["mente", "Aprender más rápido - método práctico"], ["habilidades", "Aprender a Aprender (Meta-Learning)"]]} /><CardReview key={cardTick} />
+      {cur === "cerebro" && <><Guides items={[["mente", "Segundo cerebro - cómo usarlo"]]} /><AskNotes />
+        <RecordsPanel kind="note" columns={["area", "tags", "body"]} quickAdd="Título de la nota (una idea, afirmada)…" defaults={{ area: "mente" }} note="Busca por palabra en el cuadro de arriba. Las notas son privadas: solo se usan en «Pregunta a tus notas», y solo con un modelo que la política de este espacio permita." /></>}
+      {cur === "aprendizaje" && <><Guides items={[["mente", "Aprender más rápido - método práctico"], ["habilidades", "Aprender a Aprender (Meta-Learning)"]]} /><CardReview key={cardTick} /><StudyRoute />
         <RecordsPanel kind="flashcard" title="Tarjetas" onChanged={() => setCardTick((n) => n + 1)} columns={["deck", "back", "due", "interval_days"]} importable hideFields={["due", "interval_days", "ease", "reps"]} note="El título es la pregunta. Importa un CSV con columnas pregunta, respuesta y mazo para cargar muchas de una vez." /></>}
       {cur === "habilidades" && <><Guides items={[["habilidades", "Inteligencia Emocional y Autogestión"], ["habilidades", "Negociación de Alto Nivel"]]} more="habilidades" />
         <RecordsPanel kind="skill" columns={["why", "weekly_hours", "next_review"]} note="Pocas a la vez: una en curso y una en práctica rinden más que diez pendientes." /></>}
@@ -373,16 +376,18 @@ export function Personal() {
       {cur === "decisiones" && <RecordsPanel kind="choice" columns={["chosen", "review_date", "outcome"]} note="Escribe por qué decidiste con lo que sabías entonces y ponle fecha de evaluación: así aprendes de tus decisiones y no solo de sus resultados." />}
 
       {cur === "devocional" && <><Guides items={[["espiritu", "Acercarte más a Dios - prácticas diarias"]]} />
-        <RecordsPanel kind="devotional" columns={["date", "passage", "type", "minutes"]} defaults={{ date: today(), type: "lectura" }} note="Anota la referencia del pasaje y tus propias notas. Jarvis no incluye el texto bíblico ni genera interpretaciones." /></>}
+        <RecordsPanel kind="devotional" columns={["date", "passage", "type", "minutes"]} defaults={{ date: today(), type: "lectura" }} note="Anota la referencia del pasaje y tus propias notas. Para leer el pasaje, carga tu traducción en «Estudio bíblico». Jarvis no genera interpretaciones." /></>}
       {cur === "oracion" && <RecordsPanel kind="prayer" columns={["type", "date", "body", "follow_up"]} defaults={{ date: today(), type: "peticion" }} note="Peticiones, agradecimientos y su seguimiento. Totalmente privado." />}
-      {cur === "estudio" && <RecordsPanel kind="study_note" columns={["passage", "topic", "source"]} note="Cita siempre la traducción o el comentario que consultas y separa el texto citado de tu interpretación. No hay un investigador bíblico con IA en esta versión." />}
+      {cur === "estudio" && <Scripture />}
+      {cur === "estudio" && <RecordsPanel kind="study_note" columns={["passage", "topic", "source"]} note="Cita siempre la traducción o el comentario que consultas y separa el texto citado de tu interpretación." />}
       {cur === "comunidad" && <RecordsPanel kind="ministry_event" columns={["date", "place", "team", "consent"]} note="Si guardas nombres o contactos de participantes, hazlo solo con su consentimiento." />}
       {cur === "reflexion" && <RecordsPanel kind="reflection" columns={["date", "practice", "minutes"]} defaults={{ date: today() }} />}
 
       {cur === "cuentas" && <><Guides items={[["economia", "Orden financiero personal"]]} />
-        <RecordsPanel kind="account" columns={["type", "balance", "currency", "updated"]} note="Actualiza los saldos a mano o por CSV; el patrimonio neto del Tablero suma activos e inversiones y resta deudas, por moneda. No hay conexión bancaria." importable /></>}
+        <RecordsPanel kind="account" columns={["type", "balance", "currency", "updated"]} note="Actualiza los saldos a mano o por CSV; el patrimonio neto del Tablero suma activos e inversiones y resta deudas, por moneda. Para traer movimientos del banco, importa su extracto OFX en Presupuesto." importable /></>}
       {cur === "presupuesto" && <><RecordsPanel kind="budget" columns={["category", "monthly_limit", "currency"]} note="El gasto real sale de tus movimientos pagados del mes con la misma categoría." />
-        <RecordsPanel kind="transaction" title="Movimientos personales" columns={["type", "stage", "amount", "category", "date"]} importable defaults={{ type: "gasto", stage: "pagado" }} /></>}
+        <OfxImport onDone={() => setCardTick((n) => n + 1)} />
+        <RecordsPanel key={"tx" + cardTick} kind="transaction" title="Movimientos personales" columns={["type", "stage", "amount", "category", "date"]} importable defaults={{ type: "gasto", stage: "pagado" }} /></>}
       {cur === "suscripciones" && <RecordsPanel kind="subscription" columns={["amount", "period", "renewal_date", "category", "last_used", "needed"]} defaults={{ period: "mensual", needed: "si" }} importable
         note="El Tablero avisa de renovaciones en 14 días, servicios sin uso en 45 días, dudosos y posibles duplicados por categoría." />}
       {cur === "inversiones" && <RecordsPanel kind="investment" columns={["asset_type", "invested", "current_value", "risk", "review_date"]}

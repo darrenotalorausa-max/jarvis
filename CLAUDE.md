@@ -6,7 +6,7 @@ Idioma del producto y de la documentación: español.
 ## Comandos
 ```bash
 ./scripts/setup.sh                      # prepara .venv, dependencias e interfaz (Windows: SETUP_JARVIS.cmd)
-./scripts/start.sh                      # lanza API + worker en 127.0.0.1:8765 (Windows: START_JARVIS.cmd)
+./scripts/start.sh [--app]              # lanza API + worker en 127.0.0.1:8765; --app = ventana propia (Windows: START_JARVIS.cmd, siempre --app)
 cd backend && ../.venv/bin/python -m pip install -r requirements-dev.txt
 cd backend && ../.venv/bin/python -m pytest tests -q          # ~25 s, usa FFmpeg real
 cd frontend && npm run build            # tsc --noEmit + vite build → frontend/dist
@@ -22,7 +22,8 @@ Para una instancia limpia de pruebas: `JARVIS_HOME=<carpeta vacía> JARVIS_SECRE
 - `jobs.py` cola persistente · `worker.py` ejecución, latido, cancelación, recuperación · `handlers/` un archivo por módulo
 - `records.py` registros tipados por esquema (`KINDS`) + CSV · `review.py` entregables, versiones, comprobaciones, aprobaciones, exportación
 - `webfetch.py` importador web seguro · `economy.py` · `backup.py` · `assistant.py` herramientas de Jarvis · `api.py` · `launch.py`
-- `notify.py` avisos al celular y órdenes por Telegram (`providers/notify.py`) · `access.py` acceso en red con código · `business.py` Centro de negocios · `life.py` indicadores personales y repaso espaciado · `library.py` biblioteca (`content/`)
+- `connectors.py` conector universal (plantillas, OAuth, acciones) · `monitors.py` · `imports.py` (Apple Health, OFX) · `scripture.py` · `mcp_server.py` · `handlers/{apps,study}.py`
+- `notify.py` avisos al celular y órdenes por Telegram (`providers/notify.py`) · `access.py` acceso en red con código, usuarios y roles · `business.py` Centro de negocios · `life.py` indicadores personales y repaso espaciado · `library.py` biblioteca (`content/`)
 
 Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`RecordsPanel` genera CRUD desde el esquema,
 `DeliverableView`, `shared`, `ui`, `Core`), `views/` (una por zona de navegación).
@@ -32,7 +33,8 @@ Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`Rec
 - Secretos solo en `secrets_store`; jamás en SQLite, logs, respuestas de la API, frontend o respaldos.
 - La salida de un modelo solo entra como datos validados con Pydantic (`handlers/common.ask_json`). Nunca dispara acciones.
 - Fuentes web/archivos = datos no confiables: van entre `<fuente>` y las citas se comprueban contra el texto (`quote_in_text`).
-- Acción externa (hoy: `external_export`) ⇒ aprobación vigente ligada a versión + destino. Editar crea versión e invalida aprobaciones.
+- Acción externa ⇒ aprobación vigente y específica: `external_export` ligada a versión + destino (editar crea versión e invalida aprobaciones); `connector_action` ligada al hash exacto de la petición, de un solo uso. Leer de una app conectada no requiere aprobación; todo lo que no sea GET, sí.
+- Rutas nuevas de la API: decide en `access.allowed` qué rol las alcanza; por defecto solo el propietario.
 - Única excepción: avisos al propio dueño (`notify.py`), bajo la política que él configura en cada canal. Solo título, estado y motivo; nunca contenido de entregables ni datos de espacios personales.
 - Una misión solo pasa a `completada_verificada` con criterio de cierre y evidencia (`records._check_rules`). Nunca se inventan tareas del manual DOOMSDAY.
 - `content/` es conocimiento del usuario y guías: las guías no afirman precios ni cuotas en cifras.

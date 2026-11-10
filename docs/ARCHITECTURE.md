@@ -19,6 +19,7 @@
 START_JARVIS.cmd ─► python -m jarvis.launch ─┬─► uvicorn jarvis.api:app  (127.0.0.1:8765, sirve frontend/dist y /api)
                                              └─► python -m jarvis.worker (subproceso; lee la cola de SQLite)
 ```
+Con `--app` (por defecto en Windows) la interfaz se muestra en una ventana propia (pywebview) en lugar del navegador; es el mismo servidor local. Sin pywebview cae al navegador. Cerrar la ventana, Ctrl+C o «Apagar Jarvis» detienen todo.
 El lanzador migra la base, vigila el worker y, al recibir Ctrl+C, detiene ambos. El worker arranca recuperando lo que
 quedó «ejecutando».
 
@@ -53,13 +54,16 @@ Estados: `pending` → `running` → `completed | failed | cancelled`, con esper
 
 ## Seguridad
 
-- Escucha en loopback; middleware que valida `Host` y `Origin` (DNS rebinding y peticiones de otras webs). Sin autenticación: es de un solo usuario local.
+- Escucha en loopback; middleware que valida `Host` y `Origin` (DNS rebinding y peticiones de otras webs). En loopback no hay autenticación (un solo usuario local). Con `JARVIS_HOST` + `JARVIS_ACCESS_CODE` (red o servidor) todo exige sesión: el propietario entra con el código; los usuarios `equipo` y `cliente`, con contraseña, y solo alcanzan las rutas y espacios de su rol (`access.allowed`).
 - Secretos: `keyring` del sistema; alternativa en archivo del perfil de usuario (se avisa en la interfaz). La API solo devuelve una máscara.
 - Importador web: solo http(s), resolución DNS a IP públicas, cada redirección revalidada, comprobación de la IP del par tras conectar,
   `robots.txt`, respeto de 401/403/429, 1,5 MB máximo. Las conexiones configuradas por el usuario sí pueden ser locales (Ollama).
 - Archivos: lista de extensiones, nombre saneado, ruta generada por ID, tamaño máximo, descargas como adjunto (HTML generado se sirve con CSP `sandbox`).
 - Modelos: salida validada por esquema; las fuentes no pueden cerrar su delimitador; citas verificadas; el asistente solo ejecuta herramientas
   del registro con argumentos validados y ninguna herramienta actúa fuera del equipo.
+- Apps conectadas (`connectors.py`): las define el propietario. Lectura directa; cualquier otra petición solo sale desde el trabajo `connector_action` con una aprobación ligada al hash exacto de la petición, de un solo uso y con caducidad. Ningún modelo puede iniciar una acción.
+- MCP (`mcp_server.py`) y `/api/ext/command`: solo las herramientas internas del asistente sobre un espacio de negocio; nunca espacios personales ni acciones externas.
+- Datos personales con IA (tutor, notas): pasan por el router, así que sin un modelo permitido por la política del espacio no se envía nada.
 - Respaldo: sin secretos; restauración con validación de rutas y huellas, confirmación explícita y copia previa automática.
 
 Limitación conocida del importador: entre la validación DNS y la conexión existe una ventana teórica de re-resolución; se mitiga

@@ -16,6 +16,7 @@ fi
 [ -x .venv/bin/python ] || { echo "Creando el entorno de Python en .venv …"; "$PY" -m venv .venv; }
 echo "Instalando dependencias de Python (backend/requirements.lock) …"
 .venv/bin/python -m pip install --disable-pip-version-check -q -r backend/requirements.lock
+.venv/bin/python -m pip install --disable-pip-version-check -q -r backend/requirements-desktop.txt || echo "Ventana de aplicación no disponible: Jarvis se abrirá en el navegador."
 
 if [ "${1:-}" = "rebuild" ] || [ ! -f frontend/dist/index.html ]; then
   if ! command -v node >/dev/null 2>&1 || ! node scripts/check_node.cjs; then

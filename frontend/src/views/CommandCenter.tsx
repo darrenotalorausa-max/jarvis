@@ -27,7 +27,7 @@ function Seal({ value, hue }: { value: number | null; hue: string }) {
 export function Business() {
   const { space, run, reload, boot, nav, doneTick } = useApp();
   const launch = useLaunch();
-  const [tab, setTab] = useState<"resumen" | "misiones" | "decisiones" | "agentes" | "manual">("resumen");
+  const [tab, setTab] = useState<"resumen" | "misiones" | "decisiones" | "alertas" | "agentes" | "manual">("resumen");
   const [tick, setTick] = useState(0);
   const [exec, setExec] = useState<Rec | null>(null);
   const [tool, setTool] = useState("opportunity_research");
@@ -56,7 +56,7 @@ export function Business() {
         <p className="page__sub">Tus cuatro negocios en un solo tablero: misiones por sección, avance verificado con evidencia, dinero real y agentes. Una misión solo cuenta como hecha cuando cumple su criterio de cierre y adjunta evidencia.</p></div>
         <Btn kind={paused ? "primary" : "amber"} onClick={() => setPaused(!paused)}>{paused ? "Reanudar agentes" : "Pausar todos los agentes"}</Btn></div>
       {paused && <div className="banner"><span><strong>Agentes en pausa.</strong> No se inicia ningún trabajo nuevo hasta que reanudes. Los avisos y la interfaz siguen funcionando.</span></div>}
-      <Tabs value={tab} onChange={setTab} tabs={[["resumen", "Resumen"], ["misiones", "Misiones"], ["decisiones", "Decisiones"], ["agentes", "Agentes"], ["manual", "Manual e integraciones"]]} />
+      <Tabs value={tab} onChange={setTab} tabs={[["resumen", "Resumen"], ["misiones", "Misiones"], ["decisiones", "Decisiones"], ["alertas", "Monitores y alertas"], ["agentes", "Agentes"], ["manual", "Manual e integraciones"]]} />
       {s.error && <ErrorBox message={s.error} retry={s.reload} />}
       {tab === "resumen" && (!s.data ? <Skeleton /> : <>
         <div className="grid grid--2">
@@ -106,6 +106,12 @@ export function Business() {
         note="Estados: pendiente → preparada → en cola → ejecutando → esperando (integración, datos o aprobación) → verificación → completada verificada. El último exige criterio de cierre y evidencia. Importa misiones por CSV con cualquier columna que quieras asignar." />}
       {tab === "decisiones" && <RecordsPanel kind="decision" columns={["business", "verdict", "hypothesis", "limit", "review_date"]} defaults={{ verdict: "continuar" }}
         note="Cada decisión —continuar, corregir, detener o ampliar— va con su hipótesis, su límite, su ventana y la evidencia en la que se apoya." />}
+      {tab === "alertas" && <>
+        <RecordsPanel kind="monitor" columns={["type", "every_hours", "last_run", "last_result"]} hideFields={["last_run", "last_result"]} defaults={{ type: "tareas_vencidas", every_hours: 6, notify: true }} onChanged={bump}
+          rowActions={(r, reloadRow) => <Btn small onClick={async () => { const o: any = await run(api("/monitors/run", { body: { space: space.id, id: r.id, force: false } })); if (o) { run(Promise.resolve(), `${o.hallazgos} hallazgo(s), ${o.nuevos} nuevo(s), ${o.avisos} aviso(s)`); reloadRow(); bump(); } }}>Ejecutar ahora</Btn>}
+          note="Cada monitor revisa datos reales con la frecuencia indicada, no repite un mismo hallazgo y avisa a tus canales del celular (máximo 12 avisos de monitores al día). Son reglas fijas, sin IA. Se detienen con «Pausar todos los agentes»." />
+        <RecordsPanel key={tick} kind="alert" columns={["type", "detected", "notes"]} title="Alertas" />
+      </>}
       {tab === "agentes" && <>
         <Panel title="Agentes disponibles hoy" note="Los agentes son los trabajos reales de Jarvis. Se ejecutan en paralelo hasta el límite configurado (2 por defecto, video de uno en uno), con cola persistente, cancelación y reanudación tras reinicio.">
           <div className="tablewrap"><table><thead><tr><th>Agente</th><th>Qué hace de verdad</th><th>Necesita</th></tr></thead><tbody>
@@ -136,9 +142,10 @@ export function Business() {
               ["FFmpeg", "ok", "Disponible", "Editor audiovisual"],
               ["Webhooks / n8n", "ok", "Disponible, saliente con aprobación", "Envío externo desde Revisión"],
               ["Shopify", "warn", "Solo exportación", "ZIP de sección y plantilla; sin conexión a la tienda"],
-              ["Google Drive, Sheets, Gmail", "mute", "No implementado", "Importación y exportación de archivos y CSV"],
-              ["Meta Ads, TikTok, Instagram, YouTube", "mute", "No implementado", "Registro manual y CSV de métricas"],
-              ["Notion, Cloudflare, GitHub, Stripe, PayPal, WooCommerce, Google Ads", "mute", "No implementado", "CSV donde aplique"],
+              ["Claude y ChatGPT por API", "ok", "Disponible", "Conexiones"],
+              ["Shopify, Stripe, PayPal, Notion, Cloudflare, GitHub, WooCommerce, Meta, TikTok, YouTube", "ok", "Disponible por conector universal", "Apps conectadas; lectura directa y escritura con aprobación"],
+              ["Google Drive, Sheets, Gmail", "ok", "Disponible con OAuth propio", "Apps conectadas; necesitas tu client ID de Google Cloud"],
+              ["Google Ads", "mute", "No implementado", "Su API exige token de desarrollador; usa CSV"],
               ["Higgsfield (imagen y video)", "mute", "No implementado", "Jarvis entrega prompts; importas los activos al editor"]].map((r) => <tr key={r[0]}><td className="wrap">{r[0]}</td><td><Badge value={r[1]} text={r[2]} /></td><td className="small wrap">{r[3]}</td></tr>)}
           </tbody></table></div>
         </Panel>

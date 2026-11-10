@@ -67,6 +67,7 @@ export function JobList({ types, limit = 8, empty }: { types?: string[]; limit?:
             </span>
             <div className="row">
               {dels.map((d) => <Btn small key={d} onClick={() => nav(`revision/${d}`)}>Abrir entregable</Btn>)}
+              {j.type === "connector_action" && j.status === "waiting_approval" && <Btn small kind="amber" onClick={() => nav("apps")}>Revisar y aprobar</Btn>}
               {(active || waiting) && <Btn small kind="danger" onClick={() => act(j.id, "cancel")} disabled={j.cancel_requested}>{j.cancel_requested ? "Cancelando…" : "Cancelar"}</Btn>}
               {(waiting || ["failed", "cancelled"].includes(j.status)) && <Btn small onClick={() => act(j.id, "retry")}>Reintentar</Btn>}
             </div>

@@ -5,6 +5,8 @@
   "descripcion": "Cómo conseguir cada clave y conectarla, paso a paso.",
   "orden": [
     "Qué IA conectar - gratis y de pago.md",
+    "Conectar Claude y ChatGPT.md",
+    "Conectar cualquier app.md",
     "IA gratis en la nube con Gemini y Gemma.md",
     "IA local con Ollama.md",
     "Groq (texto y transcripción).md",
@@ -13,6 +15,8 @@
     "Avisos por WhatsApp.md",
     "Notificaciones push con ntfy.md",
     "Usar Jarvis desde el celular.md",
-    "Voz con ElevenLabs.md"
+    "Voz con ElevenLabs.md",
+    "Jarvis como programa de escritorio.md",
+    "Servidor 24-7 y usuarios con rol.md"
   ]
 }

@@ -7,7 +7,7 @@ export type Boot = {
   schema: Record<string, KindSpec>; providers: Record<string, any>; capabilities: Record<string, string>; deliverable_kinds: Record<string, string>;
   deliverable_statuses: string[]; job_types: Record<string, string>; job_statuses: Record<string, string>; secrets_backend: { kind: string; label: string; protected: boolean };
   ffmpeg: Record<string, { disponible: boolean; version: string | null }>; video: { presets: string[]; framings: Record<string, string>; modes: string[] };
-  worker_alive: boolean; local_transcription: boolean;
+  worker_alive: boolean; local_transcription: boolean; user: { username: string; role: string }; connector_presets: Record<string, any>; roles: Record<string, string>; monitor_types: Record<string, string>;
 };
 type Toast = { id: number; kind: "ok" | "error" | "info"; text: string };
 type Ctx = {
@@ -84,6 +84,11 @@ export function AppProvider({ children, fallback, onboarding }: { children: Reac
   // Progreso en vivo por SSE: el servidor empuja cambios de trabajos; no hay sondeo de modelos.
   useEffect(() => {
     if (!space) return;
+    if (boot?.user?.role && boot.user.role !== "propietario") {
+      // Los roles limitados no reciben el flujo global de eventos: se consulta su espacio cada pocos segundos.
+      const t = setInterval(refreshJobs, 6000);
+      return () => clearInterval(t);
+    }
     const es = new EventSource("/api/events");
     es.addEventListener("job", (ev) => {
       const job: Job = JSON.parse((ev as MessageEvent).data);
@@ -95,7 +100,7 @@ export function AppProvider({ children, fallback, onboarding }: { children: Reac
       });
     });
     return () => es.close();
-  }, [space?.id]);
+  }, [space?.id, boot?.user?.role]);
 
   const value = useMemo<Ctx | null>(() => boot && space ? {
     boot, reload, space, setSpace: (id) => { setSpaceId(id); setPref("jarvis.space", id); },
@@ -111,16 +116,19 @@ export function AppProvider({ children, fallback, onboarding }: { children: Reac
 
 function Login({ onDone }: { onDone: () => void }) {
   const [code, setCode] = useState("");
+  const [user, setUser] = useState("");
   const [err, setErr] = useState("");
   const submit = async () => {
-    try { await api("/login", { body: { code } }); onDone(); } catch (e) { setErr((e as Error).message); }
+    try { await api("/login", { body: user.trim() ? { user, password: code } : { code } }); onDone(); } catch (e) { setErr((e as Error).message); }
   };
   return (
     <div className="splash">
       <form className="panel stack" style={{ width: "min(380px, 100%)", textAlign: "left" }} onSubmit={(e) => { e.preventDefault(); submit(); }}>
         <h1 className="page__title">Jarvis OS</h1>
-        <p className="muted">Estás entrando desde otro dispositivo. Introduce el código de acceso que definiste en el archivo .env del equipo principal.</p>
-        <label className="field"><span className="field__label">Código de acceso</span>
+        <p className="muted">Estás entrando desde otro dispositivo. Si eres el propietario, deja el usuario vacío y escribe el código de acceso. Si te crearon una cuenta, usa tu usuario y contraseña.</p>
+        <label className="field"><span className="field__label">Usuario (vacío si eres el propietario)</span>
+          <input className="input" autoComplete="username" value={user} onChange={(e) => setUser(e.target.value)} /></label>
+        <label className="field"><span className="field__label">Código de acceso o contraseña</span>
           <input className="input" type="password" autoComplete="current-password" value={code} onChange={(e) => setCode(e.target.value)} /></label>
         {err && <div className="errorbox" role="alert">{err}</div>}
         <button className="btn btn--primary" type="submit" disabled={!code}>Entrar</button>

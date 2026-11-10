@@ -18,6 +18,12 @@ def _port_free(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) != 0
 
 
+def _window(url: str) -> None:
+    import webview
+    webview.create_window("Jarvis OS", url, width=1480, height=920, min_size=(980, 640), background_color="#060a10")
+    webview.start()
+
+
 def _desktop(server, url: str) -> bool:
     """Abre Jarvis en una ventana propia de aplicación (pywebview: WebView2 en Windows, WebKit en macOS).
     Devuelve False si no está disponible, para caer al navegador."""
@@ -33,8 +39,7 @@ def _desktop(server, url: str) -> bool:
             break
         time.sleep(0.1)
     try:
-        webview.create_window("Jarvis OS", url, width=1480, height=920, min_size=(980, 640), background_color="#060a10")
-        webview.start()
+        _window(url)
     except Exception as exc:
         print(f"[Jarvis] No se pudo abrir la ventana de aplicación ({type(exc).__name__}); se abre en el navegador.")
         webbrowser.open(url)
@@ -50,10 +55,20 @@ def _desktop(server, url: str) -> bool:
 def main() -> int:
     app_mode = "--app" in sys.argv
     config.ensure_dirs()
+    if sys.stdout is None or sys.stderr is None:
+        # Iniciado sin consola (acceso directo con pythonw): los mensajes van a un archivo.
+        sys.stdout = sys.stderr = open(config.logs_dir() / "launcher.log", "a", encoding="utf-8", buffering=1)
     applied = db.migrate()
     host, port = config.host(), config.port()
     url = f"http://{'127.0.0.1' if host in ('0.0.0.0', '127.0.0.1') else host}:{port}/"
     if not _port_free("127.0.0.1", port):
+        if app_mode:
+            # Jarvis ya está en marcha: se abre otra ventana sobre la misma instancia.
+            try:
+                _window(url)
+            except Exception:
+                webbrowser.open(url)
+            return 0
         print(f"[Jarvis] El puerto {port} ya está en uso. Si Jarvis ya está abierto, entra en {url}\n"
               f"         Si lo usa otro programa, define JARVIS_PORT con otro número y vuelve a iniciar.")
         return 2
@@ -86,12 +101,14 @@ def main() -> int:
     import uvicorn
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s",
                         handlers=[logging.FileHandler(config.logs_dir() / "api.log", encoding="utf-8")])
-    server = uvicorn.Server(uvicorn.Config("jarvis.api:app", host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3))
+    from . import api
+    server = uvicorn.Server(uvicorn.Config(api.app, host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3))
+    api.app.state.shutdown = lambda: setattr(server, "should_exit", True)
     try:
         if app_mode and _desktop(server, url):
             pass  # la ventana se cerró: se detiene todo abajo
         else:
-            if not os.environ.get("JARVIS_NO_BROWSER"):
+            if app_mode or not os.environ.get("JARVIS_NO_BROWSER"):
                 threading.Timer(1.5, lambda: webbrowser.open(url)).start()
             print(f"[Jarvis] Abierto en {url}  (Ctrl+C para detener)")
             server.run()

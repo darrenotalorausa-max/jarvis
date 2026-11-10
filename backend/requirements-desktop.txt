@@ -1,0 +1,2 @@
+# Opcional: ventana propia de aplicación (START con --app). Sin esto, Jarvis se abre en el navegador.
+pywebview>=5

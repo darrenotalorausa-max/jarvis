@@ -6,7 +6,7 @@ import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Select, Skeleton, Tex
 type Conn = Record<string, any>;
 type Meta = { providers: Record<string, any>; capabilities: Record<string, string>; spaces?: any[] };
 const GUIDES: Record<string, string> = {
-  gemini: "IA gratis en la nube con Gemini y Gemma", ollama: "IA local con Ollama", groq: "Groq (texto y transcripción)", tavily: "Búsqueda web (Tavily o Brave)", brave: "Búsqueda web (Tavily o Brave)",
+  gemini: "IA gratis en la nube con Gemini y Gemma", anthropic: "Conectar Claude y ChatGPT", openai: "Conectar Claude y ChatGPT", ollama: "IA local con Ollama", groq: "Groq (texto y transcripción)", tavily: "Búsqueda web (Tavily o Brave)", brave: "Búsqueda web (Tavily o Brave)",
   telegram: "Avisos y órdenes por Telegram", whatsapp: "Avisos por WhatsApp", ntfy: "Notificaciones push con ntfy", elevenlabs: "Voz con ElevenLabs",
 };
 
@@ -50,7 +50,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
     if (out) { const r = await guard(api<{ items: any[] }>(`/connections/${out.id}/models`)); if (r) { setModels(r.items); if (!r.items.length) notify("El proveedor no devolvió ningún modelo para esta credencial.", "info"); } }
     setBusy(false);
   };
-  const isLlm = ["ollama", "gemini", "groq", "openai_compat"].includes(provider);
+  const isLlm = ["ollama", "gemini", "groq", "openai_compat", "anthropic", "openai"].includes(provider);
   const isNotify = ["telegram", "whatsapp", "ntfy"].includes(provider);
   const guide = GUIDES[provider];
 
@@ -58,7 +58,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
     <Modal title={conn ? `Editar conexión: ${conn.name}` : "Nueva conexión"} onClose={() => (saved ? onSaved(saved) : onClose())} wide>
       <div className="form">
         <FieldRow label="Proveedor" hint={spec.help}>
-          <Select value={provider} onChange={(v) => { setProvider(v); setModels(null); setF((x) => ({ ...x, capabilities: null, base_url: "", model: "" })); }} options={Object.entries(meta.providers).filter(([k]) => !only || only.includes(k)).map(([k, v]: any) => [k, v.label])} />
+          <Select value={provider} onChange={(v) => { setProvider(v); setModels(null); setF((x) => ({ ...x, capabilities: null, base_url: "", model: "" })); }} options={Object.entries(meta.providers).filter(([k]) => k !== "api" && (!only || only.includes(k))).map(([k, v]: any) => [k, v.label])} />
         </FieldRow>
         <FieldRow label="Nombre"><Text value={f.name} onChange={set("name")} placeholder={spec.label} /></FieldRow>
         {guide && <p className="field--wide small">¿No tienes la clave? <a href={`#/biblioteca/conexiones/${encodeURIComponent(guide + ".md")}`} target="_blank" rel="noreferrer">Guía paso a paso: {guide}</a></p>}
@@ -145,7 +145,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
 export function Connections() {
   const { boot, space, run, notify, reload, doneTick, nav } = useApp();
   const [tick, setTick] = useState(0);
-  const list = useData<Conn[]>(() => api("/connections"), [tick]);
+  const list = useData<Conn[]>(async () => (await api<Conn[]>("/connections")).filter((c) => c.provider !== "api"), [tick]);
   const avail = useData<Record<string, any>>(() => api("/availability", { query: { space: space.id } }), [space.id, tick, doneTick]);
   const [editing, setEditing] = useState<Conn | "new" | null>(null);
   const [testing, setTesting] = useState("");

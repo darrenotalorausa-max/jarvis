@@ -9,6 +9,9 @@ el modelo se elige del listado real de la cuenta y los precios los introduce el 
 | Gemini Developer API | Texto, JSON, visión* | `https://generativelanguage.googleapis.com/v1beta` | Cabecera `x-goog-api-key` | `GET /models`, `POST /models/{modelo}:generateContent` (`responseMimeType`) | Respuestas simuladas |
 | Groq | Texto, JSON, transcripción*, visión* | `https://api.groq.com/openai/v1` | `Authorization: Bearer` | `GET /models`, `POST /chat/completions`, `POST /audio/transcriptions` | Respuestas simuladas |
 | API compatible con OpenAI | Texto; JSON, visión y transcripción* | (la indicas tú) | `Authorization: Bearer` | Igual que Groq; reintenta con `max_completion_tokens` si el modelo rechaza `max_tokens` | Respuestas simuladas |
+| Claude (Anthropic) | Texto, JSON, visión* | API de Anthropic | Clave de API (SDK oficial `anthropic`) | `messages.create`, listado de modelos | Respuestas simuladas |
+| OpenAI | Texto, JSON, visión*, transcripción* | `https://api.openai.com/v1` | `Authorization: Bearer` | Igual que «compatible con OpenAI» | Respuestas simuladas |
+| Conector universal (`api`) | Acciones declarativas sobre cualquier API REST | (según plantilla) | Bearer, cabecera, parámetro, Basic u OAuth 2.0 (código + renovación) | Los definidos en cada plantilla de `connectors.PRESETS` | Servidor simulado; **ninguna plantilla probada con cuenta real** |
 | Brave Search API | Búsqueda | `https://api.search.brave.com` | `X-Subscription-Token` | `GET /res/v1/web/search` (`q`, `count`, `country`, `search_lang`, `freshness`) | Respuestas simuladas |
 | Tavily | Búsqueda | `https://api.tavily.com` | `Authorization: Bearer` | `POST /search` (`query`, `max_results`, `search_depth`, `time_range`) | Respuestas simuladas |
 | ElevenLabs | Voz | `https://api.elevenlabs.io` | `xi-api-key` | `GET /v2/voices`, `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128` | Sin llamada real |

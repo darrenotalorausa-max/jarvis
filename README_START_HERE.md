@@ -20,7 +20,7 @@ ni cambiar la política de PowerShell, ni desactivar el antivirus. Sin FFmpeg to
 
 ## 2. Instalar y arrancar
 
-**Windows:** doble clic en **`START_JARVIS.cmd`**.
+**Windows:** doble clic en **`START_JARVIS.cmd`**. La primera vez prepara todo y crea el acceso directo **Jarvis OS** en tu escritorio; desde entonces Jarvis se abre en su propia ventana, como un programa. Si la ventana no está disponible en tu equipo, se abre en el navegador.
 La primera vez prepara todo (entorno de Python, dependencias con versiones fijadas e interfaz) y tarda unos minutos;
 después abre <http://127.0.0.1:8765> en tu navegador. Si falta algún requisito, la ventana te dice cuál y cómo instalarlo.
 
@@ -133,3 +133,12 @@ Lo que necesita IA te dice qué le falta y espera («Esperando configuración»)
 
 Pruebas automáticas (desarrollo): `backend` → `..\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt` y
 `..\.venv\Scripts\python.exe -m pytest tests -q`. Más detalle en [`docs/ACCEPTANCE.md`](docs/ACCEPTANCE.md).
+
+## Novedades de esta versión
+
+- **Apps conectadas:** conecta Shopify, Stripe, PayPal, Notion, Cloudflare, GitHub, Meta, TikTok, YouTube, Google Drive, Sheets, Gmail, WooCommerce, n8n o cualquier API. Leer es inmediato; escribir requiere que apruebes la petición exacta.
+- **Claude y ChatGPT** como modelos (Conexiones) y Jarvis como herramienta de tu asistente (MCP).
+- **Monitores** que vigilan y avisan al celular, **usuarios con rol**, **importación de Apple Health y de extractos bancarios**, **tutor** que convierte un archivo en ruta de estudio, **preguntas a tus notas** y **texto bíblico** que tú cargas.
+- **Servidor 24/7** opcional con Docker.
+
+Cada una tiene su guía en la Biblioteca. Lo que no se ha podido probar con cuentas reales está en `docs/IMPLEMENTATION_STATUS.md`.

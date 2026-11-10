@@ -1,5 +1,5 @@
 @echo off
-rem Jarvis OS - lanzador para Windows. Doble clic para iniciar; Ctrl+C en esta ventana para detener.
+rem Jarvis OS - lanzador para Windows. Doble clic para iniciar. Abre Jarvis en su propia ventana; al cerrarla, Jarvis se detiene.
 setlocal EnableExtensions
 cd /d "%~dp0"
 title Jarvis OS
@@ -14,7 +14,7 @@ if errorlevel 1 goto setup_failed
 
 :run
 cd backend
-"..\.venv\Scripts\python.exe" -m jarvis.launch
+"..\.venv\Scripts\python.exe" -m jarvis.launch --app %*
 set "CODE=%ERRORLEVEL%"
 cd ..
 if "%CODE%"=="0" goto end

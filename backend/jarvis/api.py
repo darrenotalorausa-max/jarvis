@@ -1,5 +1,6 @@
 """API HTTP local (FastAPI). Solo loopback por defecto, con validación de Host y Origin."""
 from __future__ import annotations
+import threading
 import asyncio
 import json
 import logging
@@ -778,6 +779,16 @@ def monitors_run(body: dict = Body(...)):
     if not mon or mon["kind"] != "monitor":
         raise KeyError("monitor")
     return monitors.run_monitor(mon, force=bool(body.get("force")))
+
+
+@app.post("/api/shutdown")
+def shutdown():
+    """Apaga Jarvis desde la interfaz (necesario cuando se inició sin consola)."""
+    stop = getattr(app.state, "shutdown", None)
+    if not stop:
+        raise HTTPException(409, "Esta instancia no se inició con el lanzador; deténla desde su consola.")
+    threading.Timer(0.4, stop).start()
+    return {"ok": True}
 
 
 # ---------- Importadores, tutor, notas y texto bíblico

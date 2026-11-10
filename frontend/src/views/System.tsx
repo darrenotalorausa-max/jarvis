@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { api, fmtBytes, fmtDate, fmtNum, url, type Job } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Progress, Skeleton, Stat, Tabs, Text, useConfirm } from "../components/ui";
+import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Progress, Select, Skeleton, Stat, Tabs, Text, useConfirm } from "../components/ui";
 
 function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
   const { doneTick, jobs } = useApp();
@@ -28,7 +28,7 @@ function JobDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
 export function System() {
   const { jobs, run, route, nav, refreshJobs, boot } = useApp();
-  const [tab, setTab] = useState<"trabajos" | "uso" | "diagnostico" | "respaldo">("trabajos");
+  const [tab, setTab] = useState<"trabajos" | "uso" | "diagnostico" | "respaldo" | "usuarios">("trabajos");
   const [tick, setTick] = useState(0);
   const usage = useData<any>(() => api("/usage"), [tab === "uso", tick]);
   const diag = useData<any>(() => api("/diagnostics"), [tab === "diagnostico", tick]);
@@ -61,7 +61,7 @@ export function System() {
   return (
     <div className="page">
       <div className="page__head"><div><h1 className="page__title">Trabajos, uso y diagnóstico</h1><p className="page__sub">Todo lo que Jarvis ejecuta pasa por una cola persistente: sobrevive a reinicios, se puede cancelar y registra su progreso real por etapas.</p></div></div>
-      <Tabs value={tab} onChange={setTab} tabs={[["trabajos", "Trabajos"], ["uso", "Uso y costos"], ["diagnostico", "Diagnóstico"], ["respaldo", "Respaldo y recuperación"]]} />
+      <Tabs value={tab} onChange={setTab} tabs={[["trabajos", "Trabajos"], ["uso", "Uso y costos"], ["diagnostico", "Diagnóstico"], ["respaldo", "Respaldo y recuperación"], ["usuarios", "Usuarios y roles"]]} />
       {tab === "trabajos" && <Panel title="Trabajos de este espacio" actions={<Btn small onClick={refreshJobs}>Actualizar</Btn>}>
         {!boot.worker_alive && <p className="note note--amber">El worker no figuraba activo al cargar la página. Si los trabajos no avanzan, cierra y vuelve a abrir Jarvis con el lanzador.</p>}
         {!jobs.length ? <Empty title="Sin trabajos">Los trabajos aparecen al lanzar investigaciones, propuestas, lotes, paquetes o exportaciones.</Empty> : (
@@ -107,7 +107,8 @@ export function System() {
         </Panel>
       </>}
       {tab === "diagnostico" && diag.data && <>
-        <Panel title="Estado del sistema" actions={<Btn small onClick={() => setTick((n) => n + 1)}>Actualizar</Btn>}>
+        <Panel title="Estado del sistema" actions={<><Btn small onClick={() => setTick((n) => n + 1)}>Actualizar</Btn>
+          <Btn small kind="danger" onClick={() => confirm("¿Apagar Jarvis? Se detienen el panel, los trabajos en curso y los monitores hasta que lo abras de nuevo.", async () => { await run(api("/shutdown", { method: "POST" }), "Jarvis se está apagando. Puedes cerrar esta ventana."); }, true)}>Apagar Jarvis</Btn></>}>
           <dl className="kv">
             <dt>Versión</dt><dd>{diag.data.version} (esquema {diag.data.esquema})</dd>
             <dt>Sistema</dt><dd>{diag.data.sistema} · Python {diag.data.python}</dd>
@@ -142,6 +143,7 @@ export function System() {
           <Btn kind="amber" onClick={() => fileInput.current?.click()}>Elegir archivo de respaldo…</Btn>
         </Panel>
       </>}
+      {tab === "usuarios" && <Users />}
       {route[1]?.startsWith("job_") && <JobDetail id={route[1]} onClose={() => nav("sistema")} />}
       {inspect && (
         <Modal title="Confirmar restauración" onClose={() => setInspect(null)}>
@@ -159,5 +161,47 @@ export function System() {
       )}
       {confirmNode}
     </div>
+  );
+}
+
+function Users() {
+  const { boot, run } = useApp();
+  const [tick, setTick] = useState(0);
+  const users = useData<any[]>(() => api("/users"), [tick]);
+  const [edit, setEdit] = useState<any | null>(null);
+  const spaces = boot.spaces.filter((s) => !s.archived && s.kind !== "personal");
+  const save = async () => {
+    const out = await run(edit.id ? api(`/users/${edit.id}`, { method: "PATCH", body: edit }) : api("/users", { body: edit }), "Usuario guardado");
+    if (out) { setEdit(null); setTick((n) => n + 1); }
+  };
+  return (
+    <>
+      <Panel title="Usuarios" actions={<Btn small kind="primary" onClick={() => setEdit({ username: "", role: "equipo", spaces: [], password: "", active: true })}>Nuevo usuario</Btn>}
+        note="Los usuarios entran desde otros dispositivos de tu red con el acceso en red activado (guía «Usar Jarvis desde el celular»). Tú, como propietario, entras con el código de acceso. Los espacios personales nunca se comparten.">
+        {!users.data?.length ? <Empty title="Solo estás tú">Crea cuentas para tu equipo o para un cliente que deba revisar sus entregables.</Empty> : (
+          <div className="tablewrap"><table><thead><tr><th>Usuario</th><th>Rol</th><th>Espacios</th><th>Último acceso</th><th>Estado</th><th /></tr></thead>
+            <tbody>{users.data.map((u) => (
+              <tr key={u.id}><td>{u.username}</td><td>{u.role}</td><td className="small wrap">{u.spaces.map((id: string) => boot.spaces.find((s) => s.id === id)?.name || id).join(", ")}</td>
+                <td className="small">{fmtDate(u.last_login)}</td><td><Badge value={u.active ? "ok" : "mute"} text={u.active ? "Activo" : "Desactivado"} /></td>
+                <td><div className="row"><Btn small onClick={() => setEdit({ ...u, password: "" })}>Editar</Btn>
+                  <Btn small kind="ghost" onClick={async () => { await run(api(`/users/${u.id}`, { method: "DELETE" }), "Usuario eliminado"); setTick((n) => n + 1); }}>Eliminar</Btn></div></td></tr>
+            ))}</tbody></table></div>
+        )}
+      </Panel>
+      <Panel title="Qué puede hacer cada rol">
+        <dl className="kv"><dt>Propietario</dt><dd>Todo. Es el único que gestiona conexiones, apps, ajustes, respaldos y usuarios, y el único que aprueba versiones y envíos externos.</dd>
+          {Object.entries(boot.roles || {}).map(([k, v]) => <><dt key={k}>{k[0].toUpperCase() + k.slice(1)}</dt><dd key={k + "d"}>{String(v).split(": ")[1]}</dd></>)}</dl>
+      </Panel>
+      {edit && <Modal title={edit.id ? `Editar ${edit.username}` : "Nuevo usuario"} onClose={() => setEdit(null)}>
+        <div className="stack">
+          <FieldRow label="Usuario"><Text value={edit.username} onChange={(v) => setEdit({ ...edit, username: v })} /></FieldRow>
+          <FieldRow label="Rol"><Select value={edit.role} onChange={(v) => setEdit({ ...edit, role: v })} options={Object.entries(boot.roles || {}).map(([k, v]) => [k, String(v)])} /></FieldRow>
+          <FieldRow group label="Espacios a los que accede"><div className="stack">{spaces.map((s) => <Check key={s.id} checked={edit.spaces.includes(s.id)} onChange={(v) => setEdit({ ...edit, spaces: v ? [...edit.spaces, s.id] : edit.spaces.filter((x: string) => x !== s.id) })}>{s.name}</Check>)}</div></FieldRow>
+          <FieldRow label={edit.id ? "Nueva contraseña (vacío = no cambiar)" : "Contraseña (10 caracteres o más)"}><input className="input" type="password" autoComplete="new-password" value={edit.password} onChange={(e) => setEdit({ ...edit, password: e.target.value })} /></FieldRow>
+          {edit.id && <Check checked={edit.active} onChange={(v) => setEdit({ ...edit, active: v })}>Cuenta activa (desactivarla cierra sus sesiones al instante)</Check>}
+          <div className="row row--end"><Btn onClick={() => setEdit(null)}>Cancelar</Btn><Btn kind="primary" onClick={save}>Guardar</Btn></div>
+        </div>
+      </Modal>}
+    </>
   );
 }

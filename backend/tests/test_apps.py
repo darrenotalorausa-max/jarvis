@@ -319,3 +319,8 @@ def test_external_command_api_needs_token(space, client):
     new = client.post("/api/token").json()["token"]
     assert client.post("/api/ext/command", json={"text": "x"}, headers={"Authorization": f"Bearer {token}"}).status_code == 401   # rotar invalida el anterior
     assert client.post("/api/ext/command", json={"text": "resume lo pendiente"}, headers={"Authorization": f"Bearer {new}"}).status_code == 200
+
+
+def test_apagado_solo_con_lanzador(client):
+    # Sin lanzador no hay nada que apagar: respuesta clara, sin efectos.
+    assert client.post("/api/shutdown").status_code == 409

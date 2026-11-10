@@ -31,6 +31,11 @@ if errorlevel 1 goto fail_venv
 echo Instalando dependencias de Python (versiones fijadas en backend\requirements.lock) ...
 ".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r backend\requirements.lock
 if errorlevel 1 goto fail_pip
+echo Instalando la ventana de aplicacion (opcional) ...
+".venv\Scripts\python.exe" -m pip install --disable-pip-version-check -q -r backend\requirements-desktop.txt
+if errorlevel 1 echo   No se pudo instalar: Jarvis se abrira en el navegador. No afecta al resto.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\windows\acceso_directo.ps1" -Root "%~dp0."
+if errorlevel 1 echo   No se pudo crear el acceso directo del escritorio. Usa START_JARVIS.cmd.
 
 if /i "%~1"=="rebuild" goto need_frontend
 if exist "frontend\dist\index.html" goto frontend_ready

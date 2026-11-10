@@ -203,6 +203,92 @@ const step = (t) => console.log("·", t);
   await page.getByText(/jarvis-backup-manual/).waitFor({ timeout: 30000 });
   await shot("61-respaldo");
 
+  step("apps: conectar una API, leer al momento y escritura solo con aprobación");
+  await go("apps");
+  await page.getByRole("tab", { name: "Catálogo" }).click();
+  if ((await page.locator(".panel").count()) < 14) problems.push("el catálogo de apps muestra menos plantillas de las esperadas");
+  await shot("62-apps-catalogo");
+  await page.locator(".panel", { hasText: "API personalizada" }).getByRole("button", { name: "Conectar" }).click();
+  await page.getByLabel("Nombre", { exact: true }).fill("Mi API");
+  await page.getByLabel("URL base de la API").fill(`${BASE}/api`);
+  await page.getByLabel("Autenticación").selectOption("none");
+  await page.getByLabel(/He revisado las condiciones/).check();
+  await page.getByRole("button", { name: /acciones \(avanzado\)/ }).click();
+  await page.getByLabel("Acciones (JSON)").fill(JSON.stringify([
+    { id: "guias", label: "Leer guías", method: "GET", path: "/library" },
+    { id: "crear", label: "Crear algo", method: "POST", path: "/no-existe", body: { nombre: "{nombre}" } }]));
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await page.getByRole("button", { name: "Ejecutar", exact: true }).click();
+  await page.getByText(/HTTP 200 · GET/).waitFor();
+  await page.locator(".panel .form select").first().selectOption("crear");
+  await page.getByLabel("nombre", { exact: true }).fill("prueba");
+  await page.getByRole("button", { name: /Solicitar/ }).click();
+  await page.getByText(/Pendientes de aprobación \(1\)/).waitFor();
+  await page.getByText(new RegExp("POST .*/api/no-existe")).waitFor();
+  await shot("63-apps-aprobacion");
+  await page.getByRole("button", { name: "Rechazar" }).click();
+  await page.getByRole("heading", { name: /Pendientes de aprobación/ }).waitFor({ state: "detached" });
+  await page.getByRole("tab", { name: /Conectar otros programas/ }).click();
+  await page.getByRole("button", { name: "Generar token de API" }).click();
+  await page.getByText("Cópialo ahora").waitFor();
+
+  step("monitores: una regla real genera una alerta");
+  await go("negocios");
+  await page.getByRole("tab", { name: "Monitores y alertas" }).click();
+  await page.getByRole("button", { name: "Nuevo" }).first().click();
+  await page.getByLabel("Título *").fill("Vigilar trabajos");
+  await page.getByLabel("Qué vigila *").selectOption("trabajos_fallidos");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await page.getByRole("button", { name: "Ejecutar ahora" }).click();
+  await page.getByText(/hallazgo\(s\), \d+ nuevo/).waitFor();
+  await shot("64-monitores");
+
+  step("usuarios con rol");
+  await go("sistema");
+  await page.getByRole("tab", { name: "Usuarios y roles" }).click();
+  await page.getByRole("button", { name: "Nuevo usuario" }).click();
+  await page.getByLabel("Usuario", { exact: true }).fill("marta");
+  await page.locator(".modal input[type=checkbox]").first().check();
+  await page.locator(".modal input[type=password]").fill("clave-larga-123");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await page.getByRole("cell", { name: "marta" }).waitFor();
+  await shot("65-usuarios");
+
+  step("personal: extracto bancario, texto bíblico y preguntas a las notas sin IA");
+  await page.locator(".top select").selectOption({ label: "Personal · Personal" });
+  await go("personal");
+  await page.getByRole("tab", { name: "Patrimonio" }).click();
+  await page.getByRole("tab", { name: "Presupuesto" }).click();
+  const ofx = "OFXHEADER:100\n<OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><CURDEF>EUR<BANKTRANLIST>" +
+    "<STMTTRN><TRNTYPE>DEBIT<DTPOSTED>20261102<TRNAMT>-42.50<FITID>A1<NAME>Supermercado</STMTTRN>" +
+    "<STMTTRN><TRNTYPE>CREDIT<DTPOSTED>20261103<TRNAMT>1200.00<FITID>A2<NAME>Nomina</STMTTRN></BANKTRANLIST></STMTRS></STMTTRNRS></BANKMSGSRSV1></OFX>";
+  await page.locator("input[type=file][accept='.ofx,.qfx,.txt']").setInputFiles({ name: "extracto.ofx", mimeType: "text/plain", buffer: Buffer.from(ofx) });
+  await page.getByText(/2 movimiento\(s\) nuevo\(s\), 0 ya importado/).waitFor();
+  await page.getByRole("button", { name: "Guardar en mis registros" }).click();
+  await page.getByRole("button", { name: "Supermercado" }).waitFor();
+  await page.locator("input[type=file][accept='.ofx,.qfx,.txt']").setInputFiles({ name: "extracto.ofx", mimeType: "text/plain", buffer: Buffer.from(ofx) });
+  await page.getByText(/0 movimiento\(s\) nuevo\(s\), 2 ya importado/).waitFor();
+  await shot("66-extracto");
+  await page.getByRole("tab", { name: "Espíritu" }).click();
+  await page.getByRole("tab", { name: "Estudio bíblico" }).click();
+  await page.getByLabel("Sigla").fill("PRUEBA");
+  const verses = Array.from({ length: 12 }, (_, i) => `Juan 3:${i + 10} Texto de prueba número ${i + 10} con la palabra lámpara.`).join("\n");
+  await page.locator("input[type=file][accept='.json,.txt,.tsv']").setInputFiles({ name: "t.txt", mimeType: "text/plain", buffer: Buffer.from(verses) });
+  await page.getByPlaceholder(/Juan 3:16/).fill("Juan 3:16");
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await page.getByText("Texto de prueba número 16").waitFor();
+  await page.getByPlaceholder(/Juan 3:16/).fill("lámpara");
+  await page.getByRole("button", { name: "Buscar", exact: true }).click();
+  await page.getByText(/12 versículo\(s\) contienen/).waitFor();
+  await shot("67-texto-biblico");
+  await page.getByRole("tab", { name: "Mente" }).click();
+  await page.getByRole("tab", { name: "Segundo cerebro" }).click();
+  await page.getByPlaceholder(/Qué decidí sobre/).fill("recuerdo activo");
+  await page.getByRole("button", { name: "Preguntar" }).click();
+  await page.locator(".toast, .panel").filter({ hasText: /modelo|No encontré|conexi/i }).first().waitFor();
+  await shot("68-notas");
+  await page.locator(".top select").selectOption({ index: 1 });
+
   step("teclado y movimiento reducido");
   await go("comando");
   await page.keyboard.press("Tab");
