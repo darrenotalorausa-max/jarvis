@@ -52,7 +52,7 @@ def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s",
                         handlers=[logging.FileHandler(config.logs_dir() / "api.log", encoding="utf-8")])
     try:
-        uvicorn.run("jarvis.api:app", host=host, port=port, log_level="warning", access_log=False)
+        uvicorn.run("jarvis.api:app", host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3)
     finally:
         stop.set()
         db.set_setting("worker_heartbeat", 0)
