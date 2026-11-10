@@ -1,5 +1,6 @@
 """API HTTP local (FastAPI). Solo loopback por defecto, con validación de Host y Origin."""
 from __future__ import annotations
+import asyncio
 import json
 import logging
 import platform
@@ -8,6 +9,7 @@ import time
 from pathlib import Path
 
 from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 
 from . import assistant, backup, config, connections, db, economy, files, jobs, records, review, router, secrets_store
@@ -347,26 +349,27 @@ def retry_job(job_id: str):
 
 
 @app.get("/api/events")
-def events():
-    """SSE: empuja cambios de trabajos leyendo la tabla de eventos. No mantiene ninguna llamada a modelos abierta."""
-    def stream():
-        last = (db.one("SELECT COALESCE(MAX(id),0) m FROM job_events") or {"m": 0})["m"]
+async def events(request: Request):
+    """SSE: empuja cambios de trabajos leyendo la tabla de eventos. No mantiene ninguna llamada a modelos abierta.
+    Es asíncrono para cerrarse de inmediato cuando el cliente se desconecta o el servidor se detiene."""
+    async def stream():
+        last = (await run_in_threadpool(db.one, "SELECT COALESCE(MAX(id),0) m FROM job_events") or {"m": 0})["m"]
         yield "retry: 3000\n\n"
         idle = 0
-        while True:
-            rows = db.query("SELECT DISTINCT job_id, MAX(id) mid FROM job_events WHERE id>? GROUP BY job_id", (last,))
+        while not await request.is_disconnected():
+            rows = await run_in_threadpool(db.query, "SELECT job_id, MAX(id) mid FROM job_events WHERE id>? GROUP BY job_id", (last,))
             if rows:
                 idle = 0
                 for r in rows:
                     last = max(last, r["mid"])
-                    job = jobs.get(r["job_id"])
+                    job = await run_in_threadpool(jobs.get, r["job_id"])
                     if job:
                         yield f"event: job\ndata: {json.dumps(job, ensure_ascii=False)}\n\n"
             else:
                 idle += 1
                 if idle % 15 == 0:
                     yield ": latido\n\n"
-            time.sleep(1)
+            await asyncio.sleep(1)
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
