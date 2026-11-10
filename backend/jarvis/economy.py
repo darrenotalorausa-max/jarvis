@@ -14,7 +14,7 @@ def summary(space_id: str) -> dict:
         hours[t["project_id"] or ""] += t["data"].get("hours") or 0
 
     def blank():
-        return {"ingreso_acordado": 0.0, "ingreso_facturado": 0.0, "ingreso_cobrado": 0.0, "gasto_pagado": 0.0, "gasto_comprometido": 0.0,
+        return {"ingreso_proyectado": 0.0, "ingreso_acordado": 0.0, "ingreso_facturado": 0.0, "ingreso_cobrado": 0.0, "gasto_pagado": 0.0, "gasto_comprometido": 0.0,
                 "creditos": 0.0, "suscripciones": 0.0, "movimientos": 0}
 
     groups: dict[tuple[str, str], dict] = defaultdict(blank)
@@ -49,6 +49,6 @@ def summary(space_id: str) -> dict:
     subs = [{"id": t["id"], "titulo": t["title"], "importe": t["data"].get("amount"), "moneda": t["data"].get("currency"), "fecha": t["data"].get("date"),
              "contraparte": t["data"].get("counterparty")} for t in txs if t["data"].get("type") == "suscripcion"]
     return {"por_proyecto": rows, "totales": totals, "suscripciones": subs, "horas_sin_proyecto": round(hours.get("", 0.0), 2),
-            "nota": "Cada movimiento cuenta una sola vez en su estado actual: acordado (pendiente de facturar), facturado (pendiente de cobrar) o cobrado. "
+            "nota": "Cada movimiento cuenta una sola vez en su estado actual: proyectado (aún no comprometido), acordado (pendiente de facturar), facturado (pendiente de cobrar) o cobrado. "
                     "Las tres columnas no se suman. Contribución = ingresos cobrados − gastos pagados; es una estimación administrativa basada en lo registrado, "
                     "no contabilidad conciliada ni asesoría fiscal. No se convierten monedas."}

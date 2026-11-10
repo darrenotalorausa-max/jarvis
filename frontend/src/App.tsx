@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useApp } from "./store";
 import { Select } from "./components/ui";
 import { Command } from "./views/Command";
@@ -7,9 +7,16 @@ import { Video } from "./views/Video";
 import { Operations, Personal, Projects, Review } from "./views/manage";
 import { Connections } from "./views/Connections";
 import { System } from "./views/System";
+import { Business } from "./views/CommandCenter";
+import { Library } from "./views/Library";
+import { api } from "./api";
+import { useData } from "./store";
+import { Modal } from "./components/ui";
+import { setSound, soundOn } from "./sound";
 
 const NAV: [string, string, string][] = [
   ["comando", "Comando Jarvis", "M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18M12 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 0-7"],
+  ["negocios", "Centro de negocios", "M3 20h18M5 20V9l7-5l7 5v11M9 20v-6h6v6"],
   ["oportunidades", "Mesa de oportunidades", "M11 4a7 7 0 1 0 0 14a7 7 0 0 0 0-14M21 21l-5-5"],
   ["leads", "Leads y ofertas B2B", "M4 20V6l8-3l8 3v14M9 20v-5h6v5M9 10h.01M15 10h.01"],
   ["contenido", "Fábrica de contenido", "M4 5h16v11H4zM8 20h8M12 16v4M9 9l5 2l-5 2z"],
@@ -20,22 +27,31 @@ const NAV: [string, string, string][] = [
   ["proyectos", "Proyectos, marcas y biblioteca", "M3 7h7l2 2h9v10H3zM3 7V5h6"],
   ["operaciones", "Operaciones y economía", "M4 20V10M10 20V4M16 20v-7M21 20H3"],
   ["personal", "Espacio personal", "M12 4a4 4 0 1 0 0 8a4 4 0 0 0 0-8M4 20a8 8 0 0 1 16 0"],
+  ["biblioteca", "Biblioteca", "M5 4h5v16H5zM10 4h5v16h-5zM16 6l3-1l3 14l-3 1z"],
   ["conexiones", "Conexiones", "M9 7H7a5 5 0 0 0 0 10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"],
   ["sistema", "Trabajos, uso y diagnóstico", "M4 6h16M4 12h10M4 18h13M19 12l2 2l-2 2"],
 ];
 const VIEWS: Record<string, () => JSX.Element> = {
   comando: Command, oportunidades: Opportunities, leads: Leads, contenido: Content, video: Video, shopify: Shopify, clipping: Clipping,
-  revision: Review, proyectos: Projects, operaciones: Operations, personal: Personal, conexiones: Connections, sistema: System,
+  negocios: Business, biblioteca: Library, revision: Review, proyectos: Projects, operaciones: Operations, personal: Personal, conexiones: Connections, sistema: System,
 };
 const last = { get: () => { try { return localStorage.getItem("jarvis.last") || "oportunidades"; } catch { return "oportunidades"; } }, set: (v: string) => { try { localStorage.setItem("jarvis.last", v); } catch { /* sin almacenamiento */ } } };
 
 export function App() {
-  const { boot, space, setSpace, route, nav, jobs } = useApp();
+  const { boot, space, setSpace, route, nav, jobs, run, reload } = useApp();
+  const [palette, setPalette] = useState(false);
+  const [sound, setSoundState] = useState(soundOn());
+  const paused = !!boot.settings.agents_paused;
   const current = VIEWS[route[0]] ? route[0] : "comando";
   const View = VIEWS[current];
   const command = current === "comando";
   useEffect(() => { if (!command) last.set(route.join("/")); }, [route, command]);
   useEffect(() => { document.title = `${NAV.find((n) => n[0] === current)?.[1] || "Jarvis"} · Jarvis OS`; }, [current]);
+  useEffect(() => {
+    const on = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setPalette(true); } };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
   const running = jobs.filter((j) => j.status === "running").length;
   const waiting = jobs.filter((j) => j.status.startsWith("waiting")).length;
   return (
@@ -52,6 +68,10 @@ export function App() {
         <span className="top__spacer" />
         {running > 0 && <button className="pill pill--ok" onClick={() => nav("sistema")}><i />{running} en ejecución</button>}
         {waiting > 0 && <button className="pill pill--warn" onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
+        <button className="pill" onClick={() => setPalette(true)} title="Buscar módulos y guías (Ctrl K)">Buscar <span className="mono">Ctrl K</span></button>
+        <button className={`pill${paused ? " pill--warn" : ""}`} aria-pressed={paused} title={paused ? "Reanudar todos los agentes" : "Pausar todos los agentes"}
+          onClick={async () => { await run(api("/settings", { method: "PATCH", body: { agents_paused: !paused } }), paused ? "Agentes reanudados" : "Agentes en pausa: no se inicia ningún trabajo nuevo"); reload(); }}><i />{paused ? "Agentes en pausa" : "Agentes activos"}</button>
+        <button className="pill" aria-pressed={sound} title="Sonidos de la interfaz" onClick={() => { setSound(!sound); setSoundState(!sound); }}>{sound ? "Sonido sí" : "Sonido no"}</button>
         <label className="sr" htmlFor="espacio">Espacio de trabajo</label>
         <div><Select value={space.id} onChange={setSpace} options={boot.spaces.filter((s) => !s.archived).map((s) => [s.id, `${s.name} · ${boot.space_kinds[s.kind]}`])} /></div>
       </header>
@@ -63,6 +83,26 @@ export function App() {
         ))}
       </nav>
       <main className="main" id="contenido" key={`${space.id}:${current}`}><View /></main>
+      {palette && <Palette onClose={() => setPalette(false)} />}
     </div>
+  );
+}
+
+function Palette({ onClose }: { onClose: () => void }) {
+  const { nav } = useApp();
+  const [q, setQ] = useState("");
+  const hits = useData<any[]>(() => (q.trim().length > 1 ? api("/library/search", { query: { q } }) : Promise.resolve([])), [q]);
+  const mods = NAV.filter(([, text]) => !q.trim() || text.toLowerCase().includes(q.trim().toLowerCase()));
+  const go = (route: string) => { nav(route); onClose(); };
+  return (
+    <Modal title="Ir a…" onClose={onClose}>
+      <input className="input" autoFocus placeholder="Escribe un módulo o un tema de la biblioteca" value={q} onChange={(e) => setQ(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") { if (mods[0]) go(mods[0][0]); else if (hits.data?.[0]) go(`biblioteca/${hits.data[0].path.split("/").map(encodeURIComponent).join("/")}`); } }} />
+      <div className="palette">
+        {mods.map(([id, text]) => <button key={id} className="libitem" onClick={() => go(id)}><strong>{text}</strong><span>Módulo</span></button>)}
+        {(hits.data || []).slice(0, 8).map((h) => <button key={h.path} className="libitem" onClick={() => go(`biblioteca/${h.path.split("/").map(encodeURIComponent).join("/")}`)}><strong>{h.title}</strong><span>{h.collection}</span></button>)}
+        {q.trim().length > 1 && !mods.length && !hits.data?.length && <p className="muted small">Nada coincide con «{q}».</p>}
+      </div>
+    </Modal>
   );
 }

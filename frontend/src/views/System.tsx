@@ -112,6 +112,7 @@ export function System() {
             <dt>Versión</dt><dd>{diag.data.version} (esquema {diag.data.esquema})</dd>
             <dt>Sistema</dt><dd>{diag.data.sistema} · Python {diag.data.python}</dd>
             <dt>Escucha en</dt><dd>{diag.data.escucha} {diag.data.solo_loopback ? <Badge value="ok" text="solo este equipo" /> : <Badge value="warn" text="expuesto a la red" />}</dd>
+            <dt>Celular</dt><dd>{diag.data.acceso_red.activo ? <>Acceso en red activo con código: {diag.data.acceso_red.direcciones.join(", ") || "dirección no detectada"}</> : <>Desactivado. <a href={`#/biblioteca/conexiones/${encodeURIComponent("Usar Jarvis desde el celular.md")}`}>Cómo activarlo</a></>}</dd>
             <dt>Worker</dt><dd><Badge value={diag.data.worker_activo ? "ok" : "fail"} text={diag.data.worker_activo ? "Activo" : "Detenido"} /></dd>
             <dt>FFmpeg</dt><dd>{diag.data.ffmpeg.ffmpeg.disponible ? diag.data.ffmpeg.ffmpeg.version : <span className="amber">No instalado</span>}</dd>
             <dt>FFprobe</dt><dd>{diag.data.ffmpeg.ffprobe.disponible ? diag.data.ffmpeg.ffprobe.version : <span className="amber">No instalado</span>}</dd>

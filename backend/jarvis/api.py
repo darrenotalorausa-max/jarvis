@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, Up
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 
-from . import access, assistant, backup, business, config, connections, db, economy, files, jobs, library, notify, records, review, router, secrets_store
+from . import access, assistant, backup, business, life, config, connections, db, economy, files, jobs, library, notify, records, review, router, secrets_store
 from .handlers import clipping as clipping_h, opportunities as opp_h, video as video_h
 from .jobs import JobError
 from .providers.base import ProviderError
@@ -637,6 +637,35 @@ def library_file(path: str):
 @app.get("/api/library/search")
 def library_search(q: str):
     return library.search(q)
+
+
+@app.post("/api/library/upload")
+def library_upload(file: UploadFile = File(...)):
+    raw = file.file.read(500_000)
+    return library.add_user_doc(file.filename or "documento.md", raw.decode("utf-8", "replace"))
+
+
+@app.delete("/api/library/doc")
+def library_delete(path: str):
+    library.remove_user_doc(path)
+    return {"ok": True}
+
+
+@app.get("/api/life/summary")
+def life_summary(space: str):
+    _space(space)
+    return life.summary(space)
+
+
+@app.get("/api/life/cards")
+def life_cards(space: str):
+    _space(space)
+    return life.due_cards(space)
+
+
+@app.post("/api/life/review")
+def life_review(body: dict = Body(...)):
+    return life.review_card(body.get("space"), body.get("id") or "", int(body.get("grade", -1)))
 
 
 @app.get("/api/business/summary")

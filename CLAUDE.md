@@ -22,6 +22,7 @@ Para una instancia limpia de pruebas: `JARVIS_HOME=<carpeta vacía> JARVIS_SECRE
 - `jobs.py` cola persistente · `worker.py` ejecución, latido, cancelación, recuperación · `handlers/` un archivo por módulo
 - `records.py` registros tipados por esquema (`KINDS`) + CSV · `review.py` entregables, versiones, comprobaciones, aprobaciones, exportación
 - `webfetch.py` importador web seguro · `economy.py` · `backup.py` · `assistant.py` herramientas de Jarvis · `api.py` · `launch.py`
+- `notify.py` avisos al celular y órdenes por Telegram (`providers/notify.py`) · `access.py` acceso en red con código · `business.py` Centro de negocios · `life.py` indicadores personales y repaso espaciado · `library.py` biblioteca (`content/`)
 
 Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`RecordsPanel` genera CRUD desde el esquema,
 `DeliverableView`, `shared`, `ui`, `Core`), `views/` (una por zona de navegación).
@@ -32,6 +33,9 @@ Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`Rec
 - La salida de un modelo solo entra como datos validados con Pydantic (`handlers/common.ask_json`). Nunca dispara acciones.
 - Fuentes web/archivos = datos no confiables: van entre `<fuente>` y las citas se comprueban contra el texto (`quote_in_text`).
 - Acción externa (hoy: `external_export`) ⇒ aprobación vigente ligada a versión + destino. Editar crea versión e invalida aprobaciones.
+- Única excepción: avisos al propio dueño (`notify.py`), bajo la política que él configura en cada canal. Solo título, estado y motivo; nunca contenido de entregables ni datos de espacios personales.
+- Una misión solo pasa a `completada_verificada` con criterio de cierre y evidencia (`records._check_rules`). Nunca se inventan tareas del manual DOOMSDAY.
+- `content/` es conocimiento del usuario y guías: las guías no afirman precios ni cuotas en cifras.
 - FFmpeg y cualquier binario: lista de argumentos validada, sin shell (`JobCtx.run_proc`).
 - Sin IA disponible, un trabajo espera (`waiting_config`) o entrega solo evidencia; no se inventan resultados ni datos de ejemplo.
 - Proveedores simulados solo en `backend/tests` (`providers.base.TRANSPORT`). Nada simulado en operación.

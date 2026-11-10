@@ -4,7 +4,7 @@ import { useApp, useData } from "../store";
 import { DeliverableView } from "../components/DeliverableView";
 import { RecordsPanel } from "../components/RecordsPanel";
 import { FileTable, UploadButton, useFiles, useRecords } from "../components/shared";
-import { Badge, Btn, Empty, ErrorBox, FieldRow, Modal, Panel, Select, Skeleton, Stat, Tabs, Text } from "../components/ui";
+import { Badge, Btn, Empty, ErrorBox, FieldRow, Modal, Panel, Rich, Select, Skeleton, Stat, Tabs, Text } from "../components/ui";
 import { fmtDate } from "../api";
 
 function Head({ title, sub }: { title: string; sub: string }) {
@@ -118,6 +118,7 @@ export function Operations() {
         {eco.data?.totales.map((t: any) => (
           <Panel key={t.moneda} title={`Totales en ${t.moneda}`}>
             <div className="stats">
+              <Stat label="Proyectado" value={fmtNum(t.ingreso_proyectado)} hint="Aún sin compromiso" />
               <Stat label="Acordado" value={fmtNum(t.ingreso_acordado)} hint="Pendiente de facturar" />
               <Stat label="Facturado" value={fmtNum(t.ingreso_facturado)} hint="Pendiente de cobrar" tone={t.ingreso_facturado ? "amber" : undefined} />
               <Stat label="Cobrado" value={fmtNum(t.ingreso_cobrado)} tone="ok" />
@@ -224,32 +225,170 @@ function FocusTimer() {
   );
 }
 
+function Guides({ items, more }: { items: [string, string][]; more?: string }) {
+  const { nav } = useApp();
+  return (
+    <div className="row guides">
+      <span className="small muted">Guías</span>
+      {items.map(([col, title]) => <Btn small key={title} onClick={() => nav(`biblioteca/${col}/${encodeURIComponent(title + ".md")}`)}>{title.split(" - ")[0].split(" (")[0]}</Btn>)}
+      {more && <Btn small kind="ghost" onClick={() => nav("biblioteca")}>Ver las 18 en la biblioteca</Btn>}
+    </div>
+  );
+}
+
+function CardReview() {
+  const { space, run } = useApp();
+  const [tick, setTick] = useState(0);
+  const [shown, setShown] = useState(false);
+  const cards = useData<Rec[]>(() => api("/life/cards", { query: { space: space.id } }), [space.id, tick]);
+  const card = cards.data?.[0];
+  const grade = async (g: number) => { await run(api("/life/review", { body: { space: space.id, id: card!.id, grade: g } })); setShown(false); setTick((n) => n + 1); };
+  return (
+    <Panel title={`Repaso de hoy${cards.data ? ` · ${cards.data.length} tarjeta(s)` : ""}`} note="Repetición espaciada: cada acierto aleja el siguiente repaso; cada fallo lo trae a mañana. Diez minutos al día rinden más que una tarde entera al mes.">
+      {!cards.data ? <Skeleton /> : !card ? <p className="muted">Nada que repasar hoy. Crea tarjetas abajo: una pregunta por tarjeta, con tus palabras.</p> : (
+        <div className="stack">
+          <p className="small muted">{card.data.deck || "Sin mazo"}</p>
+          <p className="flash">{card.title}</p>
+          {shown ? <><div className="flash flash--back"><Rich text={card.data.back || ""} /></div>
+            <div className="row">{[[0, "Otra vez"], [1, "Difícil"], [2, "Bien"], [3, "Fácil"]].map(([g, t]) => <Btn key={g} kind={g === 2 ? "primary" : "default"} onClick={() => grade(g as number)}>{t}</Btn>)}</div></>
+            : <div><Btn kind="primary" onClick={() => setShown(true)}>Mostrar respuesta</Btn></div>}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function LifeSummary({ go }: { go: (area: Area) => void }) {
+  const { space, doneTick } = useApp();
+  const s = useData<any>(() => api("/life/summary", { query: { space: space.id } }), [space.id, doneTick]);
+  if (s.error) return <ErrorBox message={s.error} retry={s.reload} />;
+  if (!s.data) return <Skeleton />;
+  const d = s.data, none = "sin datos";
+  const v = (x: any, unit = "") => (x === null || x === undefined ? none : `${fmtNum(x, 1)}${unit}`);
+  return (
+    <>
+      <div className="grid grid--2">
+        <Panel title="Cuerpo" actions={<Btn small kind="ghost" onClick={() => go("cuerpo")}>Abrir</Btn>}>
+          <div className="stats">
+            <Stat label="Sueño, 7 días" value={v(d.cuerpo.sueno_7d, " h")} hint={`${d.cuerpo.noches_registradas_7d} noche(s) registradas · 30 días: ${v(d.cuerpo.sueno_30d, " h")}`} />
+            <Stat label="Entrenos, 7 días" value={v(d.cuerpo.entrenos_7d)} hint={d.cuerpo.minutos_entreno_7d !== null ? `${d.cuerpo.minutos_entreno_7d} min` : undefined} />
+            <Stat label="Lista de mercado" value={d.cuerpo.por_comprar} />
+          </div>
+        </Panel>
+        <Panel title="Mente" actions={<Btn small kind="ghost" onClick={() => go("mente")}>Abrir</Btn>}>
+          <div className="stats">
+            <Stat label="Tarjetas para hoy" value={d.mente.tarjetas_para_hoy} tone={d.mente.tarjetas_para_hoy ? "amber" : undefined} />
+            <Stat label="Enfoque, 7 días" value={`${d.mente.minutos_enfoque_7d} min`} hint={`${d.mente.bloques_enfoque_7d} bloque(s) · ${d.mente.interrupciones_7d} interrupciones`} />
+            <Stat label="Ánimo, 7 días" value={v(d.mente.animo_7d, " / 5")} hint={d.mente.animo_7d_previos !== null ? `semana anterior: ${fmtNum(d.mente.animo_7d_previos, 1)}` : undefined} />
+          </div>
+        </Panel>
+        <Panel title="Espíritu" actions={<Btn small kind="ghost" onClick={() => go("espiritu")}>Abrir</Btn>}>
+          <div className="stats">
+            <Stat label="Devocionales, 7 días" value={d.espiritu.devocionales_7d} hint={`${d.espiritu.minutos_7d} min`} />
+            <Stat label="Oraciones abiertas" value={d.espiritu.oraciones_abiertas} hint={`${d.espiritu.respondidas} respondidas`} />
+          </div>
+        </Panel>
+        <Panel title="Patrimonio" actions={<Btn small kind="ghost" onClick={() => go("patrimonio")}>Abrir</Btn>}>
+          <div className="stats">
+            {d.economia.patrimonio ? d.economia.patrimonio.map((p: any) => <Stat key={p.moneda} label={`Patrimonio neto ${p.moneda}`} value={fmtNum(p.neto, 0)} hint={`activos ${fmtNum(p.activos, 0)} · deudas ${fmtNum(p.deudas, 0)}`} />) : <Stat label="Patrimonio neto" value={none} hint="Registra tus cuentas" />}
+            <Stat label="Suscripciones al mes" value={d.economia.suscripciones_mes ? d.economia.suscripciones_mes.map((x: any) => `${fmtNum(x.importe)} ${x.moneda === "SIN MONEDA" ? "" : x.moneda}`).join(" · ") : none} />
+          </div>
+        </Panel>
+      </div>
+      {(d.economia.alertas.length > 0 || d.vencimientos.length > 0 || d.economia.presupuesto.some((b: any) => b.excedido) || d.economia.saldos_sin_actualizar.length > 0) && (
+        <Panel title="Requiere tu atención">
+          {d.vencimientos.map((x: any, i: number) => <div key={`v${i}`} className="check-row" style={{ gridTemplateColumns: "150px 1fr" }}><Badge value={x.dias < 0 ? "fail" : "warn"} text={x.dias < 0 ? `Vencido hace ${-x.dias} d` : `En ${x.dias} día(s)`} /><div>{x.tipo}: {x.titulo} <span className="muted">· {x.fecha}</span></div></div>)}
+          {d.economia.presupuesto.filter((b: any) => b.excedido).map((b: any) => <div key={b.categoria} className="check-row" style={{ gridTemplateColumns: "150px 1fr" }}><Badge value="warn" text="Presupuesto" /><div>{b.categoria}: gastado {fmtNum(b.gastado)} de {fmtNum(b.limite)} este mes.</div></div>)}
+          {d.economia.alertas.map((a: any, i: number) => <div key={`a${i}`} className="check-row" style={{ gridTemplateColumns: "150px 1fr" }}><Badge value="warn" text={label(a.tipo)} /><div className="wrap">{a.texto}</div></div>)}
+          {d.economia.saldos_sin_actualizar.length > 0 && <div className="check-row" style={{ gridTemplateColumns: "150px 1fr" }}><Badge value="mute" text="Saldos antiguos" /><div>Sin actualizar hace más de 45 días: {d.economia.saldos_sin_actualizar.join(", ")}.</div></div>}
+        </Panel>
+      )}
+      <p className="note">{d.nota}</p>
+    </>
+  );
+}
+
+type Area = "resumen" | "organizacion" | "cuerpo" | "mente" | "espiritu" | "patrimonio";
+const SUBS: Record<Exclude<Area, "resumen">, [string, string][]> = {
+  organizacion: [["tareas", "Tareas"], ["capturas", "Capturas"], ["enfoque", "Enfoque"], ["habitos", "Hábitos"]],
+  cuerpo: [["entrenos", "Entrenamientos"], ["sueno", "Sueño"], ["nutricion", "Nutrición"], ["imagen", "Imagen personal"], ["salud", "Historial de salud"], ["actividad", "Actividad diaria"]],
+  mente: [["cerebro", "Segundo cerebro"], ["aprendizaje", "Aprendizaje"], ["habilidades", "Habilidades"], ["lecturas", "Lecturas"], ["diario", "Diario"], ["decisiones", "Decisiones"]],
+  espiritu: [["devocional", "Lectura y devocional"], ["oracion", "Diario de oración"], ["estudio", "Estudio bíblico"], ["comunidad", "Comunidad"], ["reflexion", "Reflexión"]],
+  patrimonio: [["cuentas", "Cuentas y patrimonio"], ["presupuesto", "Presupuesto"], ["suscripciones", "Suscripciones"], ["inversiones", "Inversiones"], ["documentos", "Contratos y administración"]],
+};
+const today = () => new Date().toISOString().slice(0, 10);
+
 export function Personal() {
   const { space, boot, setSpace, nav } = useApp();
-  const [tab, setTab] = useState<"tareas" | "capturas" | "enfoque" | "habitos" | "actividad" | "diario" | "lecturas" | "reflexion">("tareas");
+  const [area, setArea] = useState<Area>("organizacion");
+  const [cardTick, setCardTick] = useState(0);
+  const [sub, setSub] = useState<Record<string, string>>({ organizacion: "tareas", cuerpo: "entrenos", mente: "cerebro", espiritu: "devocional", patrimonio: "cuentas" });
   const personal = boot.spaces.find((s) => s.kind === "personal" && !s.archived);
   if (space.kind !== "personal") return (
     <div className="page">
-      <Head title="Espacio personal" sub="Tareas, capturas, enfoque, hábitos, actividad, diario, lecturas y reflexión viven en un espacio personal separado de tus negocios." />
+      <Head title="Espacio personal" sub="Cuerpo, mente, espíritu y patrimonio viven en un espacio personal separado de tus negocios, y sus datos no salen de tu equipo." />
       <Empty title={`«${space.name}» es un espacio de ${boot.space_kinds[space.kind].toLowerCase()}`}
         action={personal ? <Btn kind="primary" onClick={() => setSpace(personal.id)}>Cambiar a «{personal.name}»</Btn> : <Btn kind="primary" onClick={() => nav("proyectos")}>Crear un espacio personal</Btn>}>
-        Para mantener separados los datos personales, abre tu espacio personal. Las tareas de negocio se gestionan en este mismo espacio desde Operaciones.
+        Para mantener separados los datos personales, abre tu espacio personal. Las tareas de negocio se gestionan aquí mismo.
       </Empty>
       <RecordsPanel kind="task" columns={["due_date", "priority"]} quickAdd="Añadir tarea de este espacio…" title={`Tareas de «${space.name}»`} />
     </div>
   );
+  const cur = area === "resumen" ? "" : sub[area];
   return (
     <div className="page">
-      <Head title="Espacio personal" sub="Tus datos personales no se envían a ningún proveedor salvo que cambies la política de este espacio y autorices expresamente una conexión para datos personales." />
-      <Tabs value={tab} onChange={setTab} tabs={[["tareas", "Tareas"], ["capturas", "Capturas"], ["enfoque", "Enfoque"], ["habitos", "Hábitos"], ["actividad", "Actividad y descanso"], ["diario", "Diario"], ["lecturas", "Lecturas"], ["reflexion", "Reflexión"]]} />
-      {tab === "tareas" && <RecordsPanel kind="task" columns={["due_date", "priority"]} quickAdd="Añadir tarea…" />}
-      {tab === "capturas" && <RecordsPanel kind="capture" columns={["body", "origin"]} quickAdd="Captura rápida: escribe y pulsa Intro…" defaults={{ origin: "texto" }} note="También puedes capturar por voz desde Comando: «anota …» o «tarea: …»." />}
-      {tab === "enfoque" && <><FocusTimer /><RecordsPanel kind="focus_block" columns={["date", "minutes", "goal", "outcome"]} /></>}
-      {tab === "habitos" && <Habits />}
-      {tab === "actividad" && <RecordsPanel kind="activity" columns={["date", "type", "minutes", "sleep_hours"]} defaults={{ date: new Date().toISOString().slice(0, 10) }} note="Registro personal de lo que tú anotas. No es consejo médico ni sustituye a un profesional." />}
-      {tab === "diario" && <RecordsPanel kind="journal" columns={["date", "body"]} defaults={{ date: new Date().toISOString().slice(0, 10) }} note="Privado: el diario nunca forma parte de ningún prompt ni se envía a proveedores." />}
-      {tab === "lecturas" && <RecordsPanel kind="reading" columns={["author", "type", "progress"]} />}
-      {tab === "reflexion" && <RecordsPanel kind="reflection" columns={["date", "practice", "minutes"]} defaults={{ date: new Date().toISOString().slice(0, 10) }} note="Un lugar para tu práctica según tus propias preferencias. Jarvis no interpreta ni valora su contenido." />}
+      <Head title="Espacio personal" sub="Health OS, Mind OS, Faith OS y Wealth OS en un mismo lugar. Privado por diseño: nada de esto se envía a proveedores salvo que tú cambies la política del espacio y autorices una conexión para datos personales." />
+      <Tabs value={area} onChange={setArea} tabs={[["organizacion", "Organización"], ["resumen", "Tablero"], ["cuerpo", "Cuerpo"], ["mente", "Mente"], ["espiritu", "Espíritu"], ["patrimonio", "Patrimonio"]]} />
+      {area === "resumen" && <LifeSummary go={setArea} />}
+      {area !== "resumen" && <div className="subtabs"><Tabs value={cur} onChange={(v) => setSub({ ...sub, [area]: v })} tabs={SUBS[area]} /></div>}
+
+      {cur === "tareas" && <RecordsPanel kind="task" columns={["due_date", "priority"]} quickAdd="Añadir tarea…" />}
+      {cur === "capturas" && <RecordsPanel kind="capture" columns={["body", "origin"]} quickAdd="Captura rápida: escribe y pulsa Intro…" defaults={{ origin: "texto" }} note="También puedes capturar por voz o por Telegram: «anota …» o «tarea: …»." />}
+      {cur === "enfoque" && <><Guides items={[["mente", "Enfoque y productividad sin agotarte"]]} /><FocusTimer /><RecordsPanel kind="focus_block" columns={["date", "minutes", "interruptions", "goal", "outcome"]} /></>}
+      {cur === "habitos" && <Habits />}
+
+      {cur === "entrenos" && <><Guides items={[["cuerpo", "Energía, movimiento y vitalidad"]]} />
+        <RecordsPanel kind="workout" columns={["date", "type", "minutes", "effort", "recovery"]} defaults={{ date: today(), type: "fuerza" }} importable
+          note="Registra series, repeticiones y cargas en «Ejercicios», una línea por ejercicio. Jarvis no prescribe entrenamientos: compara tus registros y decide con tu entrenador si tienes una lesión o condición." /></>}
+      {cur === "sueno" && <><Guides items={[["cuerpo", "Dormir mejor"], ["cuerpo", "Evitar el agotamiento (burnout)"]]} />
+        <RecordsPanel kind="sleep" columns={["date", "hours", "quality", "bedtime", "wake_time"]} defaults={{ date: today() }} importable note="Los promedios de 7 y 30 días aparecen en el Tablero. Puedes importar un CSV exportado de tu reloj o app de salud." /></>}
+      {cur === "nutricion" && <>
+        <RecordsPanel kind="meal" title="Plan de comidas" columns={["date", "meal", "protein_g", "cost"]} defaults={{ date: today(), meal: "comida" }} />
+        <RecordsPanel kind="pantry" title="Despensa y lista de mercado" columns={["quantity", "unit", "expiry", "est_cost"]} quickAdd="Añadir producto…" note="Cambia el estado a «por comprar» para armar la lista de mercado; expórtala a CSV para llevarla en el celular. No hay conexión con supermercados." /></>}
+      {cur === "imagen" && <>
+        <RecordsPanel kind="care_routine" columns={["frequency", "next_date"]} />
+        <RecordsPanel kind="wardrobe" columns={["category", "color", "season", "combos"]} note="Sube las fotos en Proyectos → Archivos y pega aquí el ID de cada una para tener tu armario digital." /></>}
+      {cur === "salud" && <RecordsPanel kind="health_record" columns={["type", "date", "professional", "next_date"]} defaults={{ type: "cita" }}
+        note="Tu archivo personal de citas, resultados, medicamentos y preguntas para el profesional. Jarvis no interpreta resultados ni sustituye un diagnóstico." />}
+      {cur === "actividad" && <RecordsPanel kind="activity" columns={["date", "type", "minutes", "sleep_hours"]} defaults={{ date: today() }} />}
+
+      {cur === "cerebro" && <><Guides items={[["mente", "Segundo cerebro - cómo usarlo"]]} />
+        <RecordsPanel kind="note" columns={["area", "tags", "body"]} quickAdd="Título de la nota (una idea, afirmada)…" defaults={{ area: "mente" }} note="Busca por palabra en el cuadro de arriba. Las notas son privadas: no entran en ningún prompt." /></>}
+      {cur === "aprendizaje" && <><Guides items={[["mente", "Aprender más rápido - método práctico"], ["habilidades", "Aprender a Aprender (Meta-Learning)"]]} /><CardReview key={cardTick} />
+        <RecordsPanel kind="flashcard" title="Tarjetas" onChanged={() => setCardTick((n) => n + 1)} columns={["deck", "back", "due", "interval_days"]} importable hideFields={["due", "interval_days", "ease", "reps"]} note="El título es la pregunta. Importa un CSV con columnas pregunta, respuesta y mazo para cargar muchas de una vez." /></>}
+      {cur === "habilidades" && <><Guides items={[["habilidades", "Inteligencia Emocional y Autogestión"], ["habilidades", "Negociación de Alto Nivel"]]} more="habilidades" />
+        <RecordsPanel kind="skill" columns={["why", "weekly_hours", "next_review"]} note="Pocas a la vez: una en curso y una en práctica rinden más que diez pendientes." /></>}
+      {cur === "lecturas" && <RecordsPanel kind="reading" columns={["author", "type", "progress"]} />}
+      {cur === "diario" && <RecordsPanel kind="journal" columns={["date", "mood", "body"]} defaults={{ date: today() }} note="Privado. El ánimo (1–5) alimenta la tendencia del Tablero; es un simple promedio de lo que anotas, no una evaluación." />}
+      {cur === "decisiones" && <RecordsPanel kind="choice" columns={["chosen", "review_date", "outcome"]} note="Escribe por qué decidiste con lo que sabías entonces y ponle fecha de evaluación: así aprendes de tus decisiones y no solo de sus resultados." />}
+
+      {cur === "devocional" && <><Guides items={[["espiritu", "Acercarte más a Dios - prácticas diarias"]]} />
+        <RecordsPanel kind="devotional" columns={["date", "passage", "type", "minutes"]} defaults={{ date: today(), type: "lectura" }} note="Anota la referencia del pasaje y tus propias notas. Jarvis no incluye el texto bíblico ni genera interpretaciones." /></>}
+      {cur === "oracion" && <RecordsPanel kind="prayer" columns={["type", "date", "body", "follow_up"]} defaults={{ date: today(), type: "peticion" }} note="Peticiones, agradecimientos y su seguimiento. Totalmente privado." />}
+      {cur === "estudio" && <RecordsPanel kind="study_note" columns={["passage", "topic", "source"]} note="Cita siempre la traducción o el comentario que consultas y separa el texto citado de tu interpretación. No hay un investigador bíblico con IA en esta versión." />}
+      {cur === "comunidad" && <RecordsPanel kind="ministry_event" columns={["date", "place", "team", "consent"]} note="Si guardas nombres o contactos de participantes, hazlo solo con su consentimiento." />}
+      {cur === "reflexion" && <RecordsPanel kind="reflection" columns={["date", "practice", "minutes"]} defaults={{ date: today() }} />}
+
+      {cur === "cuentas" && <><Guides items={[["economia", "Orden financiero personal"]]} />
+        <RecordsPanel kind="account" columns={["type", "balance", "currency", "updated"]} note="Actualiza los saldos a mano o por CSV; el patrimonio neto del Tablero suma activos e inversiones y resta deudas, por moneda. No hay conexión bancaria." importable /></>}
+      {cur === "presupuesto" && <><RecordsPanel kind="budget" columns={["category", "monthly_limit", "currency"]} note="El gasto real sale de tus movimientos pagados del mes con la misma categoría." />
+        <RecordsPanel kind="transaction" title="Movimientos personales" columns={["type", "stage", "amount", "category", "date"]} importable defaults={{ type: "gasto", stage: "pagado" }} /></>}
+      {cur === "suscripciones" && <RecordsPanel kind="subscription" columns={["amount", "period", "renewal_date", "category", "last_used", "needed"]} defaults={{ period: "mensual", needed: "si" }} importable
+        note="El Tablero avisa de renovaciones en 14 días, servicios sin uso en 45 días, dudosos y posibles duplicados por categoría." />}
+      {cur === "inversiones" && <RecordsPanel kind="investment" columns={["asset_type", "invested", "current_value", "risk", "review_date"]}
+        note="Registro y seguimiento. Jarvis no recomienda activos ni opera dinero; para investigar un mercado usa la Mesa de oportunidades, que entrega fuentes." />}
+      {cur === "documentos" && <RecordsPanel kind="admin_doc" columns={["type", "counterparty", "due_date", "amount"]} defaults={{ type: "contrato" }}
+        note="Vencimientos a 30 días aparecen en el Tablero. La lista de revisión es para tu abogado o contador: Jarvis no da asesoría legal." />}
     </div>
   );
 }

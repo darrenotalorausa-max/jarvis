@@ -38,9 +38,24 @@ function useClock(active: boolean): string {
   return now;
 }
 
-type Props = { state: CoreState; detail?: string; progress?: number | null; count?: number; running?: number; levelRef?: MutableRefObject<number> };
+export type DialItem = { id: string; code: string; label: string };
+type Props = { state: CoreState; detail?: string; progress?: number | null; count?: number; running?: number; levelRef?: MutableRefObject<number>; dial?: DialItem[] };
 
-export function Core({ state, detail, progress = null, count = 0, running = 0, levelRef }: Props) {
+const polar = (r: number, deg: number) => { const a = ((deg - 90) * Math.PI) / 180; return [200 + r * Math.cos(a), 200 + r * Math.sin(a)]; };
+/** Sector de corona entre dos radios. */
+function sector(r1: number, r2: number, a0: number, a1: number): string {
+  const [x0, y0] = polar(r2, a0), [x1, y1] = polar(r2, a1), [x2, y2] = polar(r1, a1), [x3, y3] = polar(r1, a0);
+  return `M${x0.toFixed(1)} ${y0.toFixed(1)}A${r2} ${r2} 0 0 1 ${x1.toFixed(1)} ${y1.toFixed(1)}L${x2.toFixed(1)} ${y2.toFixed(1)}A${r1} ${r1} 0 0 0 ${x3.toFixed(1)} ${y3.toFixed(1)}Z`;
+}
+/** Arco para el texto; en la mitad inferior se invierte para que no quede boca abajo. */
+function labelArc(r: number, a0: number, a1: number): string {
+  const mid = ((a0 + a1) / 2) % 360;
+  const flip = mid > 90 && mid < 270;
+  const [xs, ys] = polar(flip ? r + 3.5 : r - 3.5, flip ? a1 : a0), [xe, ye] = polar(flip ? r + 3.5 : r - 3.5, flip ? a0 : a1);
+  return `M${xs.toFixed(1)} ${ys.toFixed(1)}A${r} ${r} 0 0 ${flip ? 0 : 1} ${xe.toFixed(1)} ${ye.toFixed(1)}`;
+}
+
+export function Core({ state, detail, progress = null, count = 0, running = 0, levelRef, dial = [] }: Props) {
   const [title, sub] = TEXT[state];
   const [boot, setBoot] = useState(true);
   const wave = useRef<SVGPathElement>(null);
@@ -79,16 +94,32 @@ export function Core({ state, detail, progress = null, count = 0, running = 0, l
 
   return (
     <div className={`core core--${state}${boot ? " core--boot" : ""}`} style={{ ["--core-c" as string]: `var(--c)` }} role="img" aria-label={`Estado de Jarvis: ${title}. ${detail || sub}`}>
-      <svg viewBox="0 0 400 400" aria-hidden="true">
-        <g className="core__ticks">
-          {Array.from({ length: 72 }, (_, i) => <line key={i} className={i % 6 === 0 ? "major" : undefined} x1="200" y1="6" x2="200" y2={i % 6 === 0 ? 18 : 12} transform={`rotate(${i * 5} 200 200)`} />)}
-        </g>
-        <circle className="core__arc core__ring--a" cx="200" cy="200" r="172" pathLength="360" />
-        <circle className="core__track" cx="200" cy="200" r="154" />
-        <circle className="core__arc core__progress" cx="200" cy="200" r="154" pathLength="360" strokeDasharray={`${(progress ?? 0) * 360} 360`} />
-        <circle className="core__arc core__ring--b" cx="200" cy="200" r="138" pathLength="360" />
-        <circle className="core__arc core__scan" cx="200" cy="200" r="138" pathLength="360" />
-        <circle className="core__arc core__ring--c" cx="200" cy="200" r="120" pathLength="360" />
+      <svg viewBox="0 0 400 400">
+        {dial.length > 0 ? (
+          <g className="core__dial">
+            {dial.map((d, i) => {
+              const step = 360 / dial.length, a0 = i * step + 1.2, a1 = (i + 1) * step - 1.2;
+              return (
+                <a key={d.id} href={`#/${d.id}`} aria-label={d.label}>
+                  <title>{d.label}</title>
+                  <path className="core__seg" d={sector(178, 198, a0, a1)} />
+                  <path id={`dial-${i}`} d={labelArc(188, a0, a1)} fill="none" />
+                  <text className="core__segtext"><textPath href={`#dial-${i}`} startOffset="50%" textAnchor="middle">{d.code}</textPath></text>
+                </a>
+              );
+            })}
+          </g>
+        ) : (
+          <g className="core__ticks">
+            {Array.from({ length: 72 }, (_, i) => <line key={i} className={i % 6 === 0 ? "major" : undefined} x1="200" y1="6" x2="200" y2={i % 6 === 0 ? 18 : 12} transform={`rotate(${i * 5} 200 200)`} />)}
+          </g>
+        )}
+        <circle className="core__arc core__ring--a" cx="200" cy="200" r="166" pathLength="360" />
+        <circle className="core__track" cx="200" cy="200" r="150" />
+        <circle className="core__arc core__progress" cx="200" cy="200" r="150" pathLength="360" strokeDasharray={`${(progress ?? 0) * 360} 360`} />
+        <circle className="core__arc core__ring--b" cx="200" cy="200" r="134" pathLength="360" />
+        <circle className="core__arc core__scan" cx="200" cy="200" r="134" pathLength="360" />
+        <circle className="core__arc core__ring--c" cx="200" cy="200" r="118" pathLength="360" />
         <circle className="core__disc" cx="200" cy="200" r="94" />
         <path ref={wave} className="core__wave" d={circle()} />
         <text className="core__readout" x="200" y="208">{readout}</text>

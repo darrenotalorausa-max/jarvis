@@ -70,3 +70,30 @@ def search(q: str, limit: int = 30) -> list[dict]:
                 hits.append({"path": d["path"], "title": d["title"], "collection": col["title"], "matches": n, "snippet": snippet})
     hits.sort(key=lambda h: -h["matches"])
     return hits[:limit]
+
+
+USER_COLLECTION = "mis-skills"
+
+
+def add_user_doc(name: str, text: str) -> dict:
+    """Guarda un documento o skill del usuario (Markdown o texto) en su propia colección."""
+    from .security import sanitize_filename
+    clean = sanitize_filename(name)
+    stem = clean.rsplit(".", 1)[0][:90] or "documento"
+    if clean.rsplit(".", 1)[-1].lower() not in ("md", "txt", "markdown"):
+        raise SecurityError("Solo se admiten archivos .md o .txt.")
+    if len(text) > 400_000:
+        raise SecurityError("El documento supera 400 KB de texto.")
+    d = root() / USER_COLLECTION
+    d.mkdir(parents=True, exist_ok=True)
+    if not (d / "_meta.json").exists():
+        (d / "_meta.json").write_text(json.dumps({"titulo": "Mis skills y documentos", "grupo": "Tu biblioteca", "posicion": 19,
+                                                   "descripcion": "Instrucciones y documentos que cargas tú. Puedes aplicarlos como skill al generar contenido."}, ensure_ascii=False, indent=2), encoding="utf-8")
+    (d / f"{stem}.md").write_text(text, encoding="utf-8")
+    return {"path": f"{USER_COLLECTION}/{stem}.md", "title": stem}
+
+
+def remove_user_doc(rel: str) -> None:
+    if not rel.startswith(USER_COLLECTION + "/"):
+        raise SecurityError("Solo puedes eliminar documentos de tu propia colección.")
+    _resolve(rel, ".md").unlink()

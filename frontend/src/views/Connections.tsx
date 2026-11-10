@@ -4,7 +4,11 @@ import { useApp, useData } from "../store";
 import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Select, Skeleton, Text, useConfirm } from "../components/ui";
 
 type Conn = Record<string, any>;
-type Meta = { providers: Record<string, any>; capabilities: Record<string, string> };
+type Meta = { providers: Record<string, any>; capabilities: Record<string, string>; spaces?: any[] };
+const GUIDES: Record<string, string> = {
+  gemini: "IA gratis en la nube con Gemini y Gemma", ollama: "IA local con Ollama", groq: "Groq (texto y transcripción)", tavily: "Búsqueda web (Tavily o Brave)", brave: "Búsqueda web (Tavily o Brave)",
+  telegram: "Avisos y órdenes por Telegram", whatsapp: "Avisos por WhatsApp", ntfy: "Notificaciones push con ntfy", elevenlabs: "Voz con ElevenLabs",
+};
 
 /** Formulario de conexión. No depende del contexto de la app para poder usarse también en el primer inicio. */
 export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: { meta: Meta; conn?: Conn; onClose: () => void; onSaved: (c: Conn) => void; notify: (t: string, k?: "ok" | "error" | "info") => void; only?: string[] }) {
@@ -47,6 +51,8 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
     setBusy(false);
   };
   const isLlm = ["ollama", "gemini", "groq", "openai_compat"].includes(provider);
+  const isNotify = ["telegram", "whatsapp", "ntfy"].includes(provider);
+  const guide = GUIDES[provider];
 
   return (
     <Modal title={conn ? `Editar conexión: ${conn.name}` : "Nueva conexión"} onClose={() => (saved ? onSaved(saved) : onClose())} wide>
@@ -55,6 +61,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
           <Select value={provider} onChange={(v) => { setProvider(v); setModels(null); setF((x) => ({ ...x, capabilities: null, base_url: "", model: "" })); }} options={Object.entries(meta.providers).filter(([k]) => !only || only.includes(k)).map(([k, v]: any) => [k, v.label])} />
         </FieldRow>
         <FieldRow label="Nombre"><Text value={f.name} onChange={set("name")} placeholder={spec.label} /></FieldRow>
+        {guide && <p className="field--wide small">¿No tienes la clave? <a href={`#/biblioteca/conexiones/${encodeURIComponent(guide + ".md")}`} target="_blank" rel="noreferrer">Guía paso a paso: {guide}</a></p>}
         {provider !== "whisper_local" && <FieldRow label="URL" hint={spec.base_url ? `Por defecto: ${spec.base_url}` : "Obligatoria"} wide><Text value={f.base_url} onChange={set("base_url")} placeholder={spec.base_url || "https://…"} /></FieldRow>}
         {spec.needs_secret && <FieldRow label="Credencial" wide hint={saved?.has_secret ? `Guardada (${saved.secret_hint}). Escribe solo para sustituirla; nunca se muestra completa.` : "Se guarda del lado servidor; no vuelve a mostrarse."}>
           <input className="input" type="password" autoComplete="new-password" value={f.secret || ""} placeholder={saved?.has_secret ? "•••••••• (sin cambios)" : "Pega aquí la clave de API"} onChange={(e) => set("secret")(e.target.value)} />
@@ -72,11 +79,31 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
           </FieldRow>
           <FieldRow label="Modelo de voz (opcional)"><Text value={f.model} onChange={set("model")} placeholder="Predeterminado del proveedor" /></FieldRow>
         </>}
-        <FieldRow group label="Capacidades" wide hint="Marca solo las que este proveedor y modelo soporten de verdad.">
+        {isNotify && <>
+          {provider === "telegram" && <FieldRow label="Chat ID" hint="Tu ID numérico de Telegram (te lo dice @userinfobot)."><Text value={f.options?.chat_id} onChange={opt("chat_id")} /></FieldRow>}
+          {provider === "whatsapp" && <>
+            <FieldRow label="ID del número de WhatsApp Business" hint="Phone number ID de tu app de Meta."><Text value={f.options?.phone_number_id} onChange={opt("phone_number_id")} /></FieldRow>
+            <FieldRow label="Tu número de destino" hint="Con prefijo de país, solo dígitos."><Text value={f.options?.to} onChange={opt("to")} /></FieldRow>
+          </>}
+          {provider === "ntfy" && <FieldRow label="Tema" hint="Largo y difícil de adivinar; el mismo al que te suscribes en la app."><Text value={f.options?.topic} onChange={opt("topic")} /></FieldRow>}
+          <FieldRow group label="Avisarme cuando un trabajo…" wide hint="Los avisos solo llevan título, estado y motivo; nunca el contenido de un entregable.">
+            <div className="row">{[["completed", "se complete"], ["failed", "falle"], ["waiting", "quede esperando algo de mí"]].map(([id, text]) => {
+              const ev: string[] = f.options?.events || ["completed", "failed", "waiting"];
+              return <Check key={id} checked={ev.includes(id)} onChange={(v) => opt("events")(v ? [...ev, id] : ev.filter((x) => x !== id))}>{text}</Check>;
+            })}</div>
+          </FieldRow>
+          {provider === "telegram" && <FieldRow group label="Órdenes desde el celular" wide hint="Solo se obedece a tu chat ID y solo con herramientas internas (resumir, crear tareas, lanzar investigaciones, pausar agentes).">
+            <div className="stack">
+              <Check checked={!!f.options?.commands} onChange={opt("commands")}>Aceptar órdenes desde este chat</Check>
+              {f.options?.commands && <Select value={f.options?.space_id} onChange={opt("space_id")} empty="Elige el espacio sobre el que actúan" options={(meta.spaces || []).filter((x: any) => !x.archived).map((x: any) => [x.id, x.name])} />}
+            </div>
+          </FieldRow>}
+        </>}
+        {!isNotify && <FieldRow group label="Capacidades" wide hint="Marca solo las que este proveedor y modelo soporten de verdad.">
           <div className="row">{allCaps.map((c) => <Check key={c} checked={caps.includes(c)} onChange={(v) => set("capabilities")(v ? [...caps, c] : caps.filter((x) => x !== c))}>{meta.capabilities[c] || c}</Check>)}</div>
-        </FieldRow>
+        </FieldRow>}
         {caps.includes("transcripcion") && provider !== "whisper_local" && <FieldRow label="Modelo de transcripción" hint="ID exacto del modelo de audio en tu cuenta."><Text value={f.options?.transcription_model} onChange={opt("transcription_model")} /></FieldRow>}
-        {provider !== "webhook" && <>
+        {provider !== "webhook" && !isNotify && <>
           <FieldRow label="Tiempo máximo (s)"><Text type="number" value={f.timeout_s} onChange={set("timeout_s")} /></FieldRow>
           {isLlm && <FieldRow label="Máximo de tokens de salida"><Text type="number" value={f.max_tokens} onChange={set("max_tokens")} /></FieldRow>}
           <FieldRow label="Concurrencia"><Text type="number" value={f.concurrency} onChange={set("concurrency")} /></FieldRow>
@@ -86,7 +113,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
         {!local && provider !== "webhook" && <FieldRow label="Política de datos">
           <Select value={f.data_policy} onChange={set("data_policy")} options={[["negocio", "Solo datos de negocio"], ["todo", "También datos de espacios personales"]]} />
         </FieldRow>}
-        {!local && provider !== "webhook" && <FieldRow group label="Costo" wide>
+        {!local && provider !== "webhook" && !isNotify && <FieldRow group label="Costo" wide>
           <div className="stack">
             <Check checked={!!f.is_paid} onChange={set("is_paid")}>Esta conexión factura por uso (de pago)</Check>
             {f.is_paid && <div className="form">
@@ -116,7 +143,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
 }
 
 export function Connections() {
-  const { boot, space, run, notify, reload, doneTick } = useApp();
+  const { boot, space, run, notify, reload, doneTick, nav } = useApp();
   const [tick, setTick] = useState(0);
   const list = useData<Conn[]>(() => api("/connections"), [tick]);
   const avail = useData<Record<string, any>>(() => api("/availability", { query: { space: space.id } }), [space.id, tick, doneTick]);
@@ -141,7 +168,9 @@ export function Connections() {
     <div className="page">
       <div className="page__head"><div><h1 className="page__title">Conexiones</h1>
         <p className="page__sub">Política FREE / LOCAL FIRST: primero proveedores locales, después nube sin costo declarado y, solo si lo activas, de pago con presupuesto. Jarvis nunca cambia a pago por su cuenta ni rota cuentas para evadir límites.</p></div>
-        <Btn kind="primary" onClick={() => setEditing("new")}>Nueva conexión</Btn></div>
+        <div className="row"><Btn onClick={() => nav("biblioteca/conexiones/" + encodeURIComponent("IA gratis en la nube con Gemini y Gemma.md"))}>Guías de conexión</Btn>
+          <Btn onClick={async () => { const r: any = await run(api("/notify/test", { body: { space: space.id } })); if (r) notify(r.enviados ? `Aviso de prueba enviado a ${r.enviados} canal(es).` : "No hay ningún canal de avisos habilitado. Añade Telegram, WhatsApp o ntfy.", r.enviados ? "ok" : "info"); }}>Probar avisos al celular</Btn>
+          <Btn kind="primary" onClick={() => setEditing("new")}>Nueva conexión</Btn></div></div>
       {!boot.secrets_backend.protected && <div className="banner"><span><strong>Almacén de credenciales:</strong> {boot.secrets_backend.label}. Las claves quedan fuera de la carpeta de datos y de los respaldos, pero sin cifrado del sistema.</span></div>}
       <div className="grid grid--side">
         <Panel title="Conexiones configuradas">

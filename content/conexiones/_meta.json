@@ -4,6 +4,7 @@
   "posicion": 1,
   "descripcion": "Cómo conseguir cada clave y conectarla, paso a paso.",
   "orden": [
+    "Qué IA conectar - gratis y de pago.md",
     "IA gratis en la nube con Gemini y Gemma.md",
     "IA local con Ollama.md",
     "Groq (texto y transcripción).md",

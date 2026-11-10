@@ -123,6 +123,9 @@ export function Content() {
   const brands = useRecords("brand");
   const briefs = useRecords("brief");
   const [f, setF] = useState<Record<string, any>>({ objective: "confianza", count: 5, format: "vertical 9:16" });
+  const lib = useData<any[]>(() => api("/library"), []);
+  const [skills, setSkills] = useState<string[]>([]);
+  const skillDocs = (lib.data || []).filter((c) => ["mis-skills", "disparadores", "habilidades"].includes(c.id)).flatMap((c) => c.docs.map((d: any) => ({ ...d, col: c.title })));
   const set = (k: string) => (v: any) => setF((x) => ({ ...x, [k]: v }));
   const fromBrief = (id: string) => {
     const b = (briefs.data || []).find((x) => x.id === id);
@@ -137,7 +140,7 @@ export function Content() {
         <Needs caps={["extraccion"]} />
         <div className="grid grid--side">
           <Panel title="Nuevo lote" note="Si no hay API de imagen o video, el lote es un paquete de producción con prompts utilizables, no videos terminados. Importa después los activos producidos en el Editor audiovisual.">
-            <form className="form" onSubmit={(e) => { e.preventDefault(); launch("content_batch", { ...f, count: Number(f.count) }, `Contenido: ${f.objective}`); }}>
+            <form className="form" onSubmit={(e) => { e.preventDefault(); launch("content_batch", { ...f, count: Number(f.count), skill_paths: skills }, `Contenido: ${f.objective}`); }}>
               <FieldRow label="Partir de un brief"><Select value={f.brief_id} onChange={fromBrief} empty="Sin brief" options={(briefs.data || []).map((b) => [b.id, b.title])} /></FieldRow>
               <FieldRow label="Marca" hint={!brands.data?.length ? "Registra una marca en Proyectos, marcas y biblioteca." : undefined}><Select value={f.brand_id} onChange={set("brand_id")} empty="Sin marca" options={(brands.data || []).map((b) => [b.id, b.title])} /></FieldRow>
               <FieldRow label="Objetivo"><Select value={f.objective} onChange={set("objective")} options={[["viralidad", "Viralidad"], ["confianza", "Confianza"], ["captacion", "Captación"], ["ventas", "Ventas"]]} /></FieldRow>
@@ -150,6 +153,12 @@ export function Content() {
               <FieldRow label="Hechos comprobados (uno por línea)" wide hint="Solo lo que puedas demostrar. Todo lo demás se marcará para verificar."><Text area rows={3} value={f.facts} onChange={set("facts")} /></FieldRow>
               <FieldRow label="Referencias de estilo" wide><Text area rows={2} value={f.references} onChange={set("references")} /></FieldRow>
               <FieldRow label="Recursos propios autorizados disponibles" wide><Text area rows={2} value={f.assets} onChange={set("assets")} placeholder="Qué material tienes: tomas, fotos, testimonios reales con permiso…" /></FieldRow>
+              <FieldRow group label="Aplicar skills de tu biblioteca (máximo 3)" wide hint="Tus guías se pasan al modelo como criterio de estilo. Las reglas de Jarvis siguen mandando: nada de urgencia, escasez o prueba social que no conste en tus hechos comprobados.">
+                <div className="row">
+                  <div style={{ width: 340 }}><Select value="" onChange={(v) => { if (v && skills.length < 3 && !skills.includes(v)) setSkills([...skills, v]); }} empty="Añadir una skill…" options={skillDocs.map((d) => [d.path, `${d.col} · ${d.title}`])} /></div>
+                  {skills.map((p) => <Btn small key={p} onClick={() => setSkills(skills.filter((x) => x !== p))}>{p.split("/")[1].replace(".md", "")} ×</Btn>)}
+                </div>
+              </FieldRow>
               <div className="row row--end field--wide"><Btn kind="primary" type="submit">Generar lote</Btn></div>
             </form>
           </Panel>

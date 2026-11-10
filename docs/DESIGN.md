@@ -32,6 +32,15 @@ Todo lo que muestra es un hecho del sistema, nunca decoración:
 La animación se detiene con la pestaña oculta. Con `prefers-reduced-motion` desaparecen rotaciones y desplazamientos, pero el
 cambio de estado sigue siendo legible por color, lectura y un fundido corto (no es un apagado total).
 
+### Dial de módulos y sonido
+
+El anillo exterior del núcleo son 14 sectores navegables (uno por módulo), inspirado en los diales de las referencias HUD que aportó
+el usuario pero con función real: cada sector es un enlace con foco de teclado. Los sonidos (`sound.ts`) se sintetizan con Web Audio,
+sin archivos ni material de terceros: un encendido de unos 2 s una vez por sesión y señales breves ligadas a hechos (trabajo
+completado, fallo, micrófono abierto). Se desactivan desde la barra superior.
+
+Los cuatro negocios llevan un color propio solo como marca pequeña (punto, sello y barra de sección), nunca como relleno.
+
 ## Estados
 
 Todos los controles tienen `:hover`, `:active` (respuesta al pulsar), `:focus-visible`, deshabilitado con cursor y contraste

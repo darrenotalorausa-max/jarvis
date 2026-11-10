@@ -15,7 +15,7 @@ const step = (t) => console.log("·", t);
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, locale: "es-ES" });
   const page = await ctx.newPage();
-  page.on("console", (m) => { if (m.type() === "error") problems.push(`consola: ${m.text()}`); });
+  page.on("console", (m) => { if (m.type() === "error" && !m.text().includes("400 (Bad Request)")) problems.push(`consola: ${m.text()}`); }); // el 400 es la validación esperada de la misión
   page.on("pageerror", (e) => problems.push(`excepción: ${e.message}`));
   page.on("response", (r) => { if (r.status() >= 500) problems.push(`HTTP ${r.status()} ${r.url()}`); });
   const shot = (name) => page.screenshot({ path: path.join(OUT, `${name}.png`) });
@@ -58,12 +58,44 @@ const step = (t) => console.log("·", t);
   if ((await mic.getAttribute("aria-pressed")) !== "false") problems.push("el micrófono aparece abierto sin pulsarlo");
 
   step("todas las pantallas cargan y muestran estados vacíos útiles");
-  for (const r of ["oportunidades", "leads", "contenido", "video", "shopify", "clipping", "revision", "proyectos", "operaciones", "personal", "conexiones", "sistema"]) {
+  for (const r of ["negocios", "biblioteca", "oportunidades", "leads", "contenido", "video", "shopify", "clipping", "revision", "proyectos", "operaciones", "personal", "conexiones", "sistema"]) {
     await go(r);
     await page.waitForTimeout(350);
     if (await page.locator(".errorbox").count()) problems.push(`${r}: muestra un error`);
     await shot(`10-${r}`);
   }
+
+  step("centro de negocios: misión con evidencia obligatoria y pausa de agentes");
+  await go("negocios");
+  await page.getByRole("tab", { name: "Misiones" }).click();
+  await page.getByRole("button", { name: "Nuevo" }).click();
+  await page.getByLabel("Título *").fill("Publicar política de devoluciones");
+  await page.getByLabel("Estado").selectOption("completada_verificada");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await page.getByText(/hacen falta su criterio de cierre y una evidencia/).waitFor();
+  await page.getByLabel("Estado").selectOption("pendiente");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await page.getByRole("button", { name: "Publicar política de devoluciones" }).waitFor();
+  await page.getByRole("tab", { name: "Resumen" }).click();
+  await page.getByText("0 de 1 misiones verificadas").waitFor();
+  await page.getByRole("button", { name: "Pausar todos los agentes" }).click();
+  await page.getByText("Agentes en pausa.", { exact: false }).first().waitFor();
+  await shot("05-centro-negocios");
+  await page.getByRole("button", { name: "Reanudar agentes" }).click();
+  await page.getByRole("button", { name: "Pausar todos los agentes" }).waitFor();
+
+  step("biblioteca, paleta Ctrl+K y dial del núcleo");
+  await go("biblioteca");
+  await page.getByRole("button", { name: "IA gratis en la nube con Gemini y Gemma" }).click();
+  await page.getByText("aistudio.google.com").first().waitFor();
+  await shot("06-biblioteca-guia");
+  await page.keyboard.press("Control+k");
+  await page.getByPlaceholder("Escribe un módulo o un tema de la biblioteca").fill("anclaje");
+  await page.getByRole("button", { name: /Anclaje/ }).first().click();
+  await page.getByRole("heading", { name: /Anclaje/ }).first().waitFor();
+  await go("comando");
+  await page.locator(".core__dial a[aria-label='Clipping']").click();
+  await page.getByRole("heading", { name: "Clipping" }).waitFor();
 
   step("personal: crear, editar, archivar");
   await page.locator(".top select").selectOption({ label: "Personal · Personal" });
@@ -81,6 +113,18 @@ const step = (t) => console.log("·", t);
   await page.getByLabel(/Caminar el /).last().click();
   await page.waitForFunction(() => { const b = [...document.querySelectorAll("input[aria-label^='Caminar el ']")].pop(); return b && b.checked; });
   await shot("20-personal-habitos");
+  await page.getByRole("tab", { name: "Mente" }).click();
+  await page.getByRole("tab", { name: "Aprendizaje" }).click();
+  await page.getByRole("button", { name: "Nuevo" }).click();
+  await page.getByLabel("Título *").fill("¿Qué es el recuerdo activo?");
+  await page.getByLabel("Respuesta *").fill("Recordar sin mirar el material");
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await page.getByRole("button", { name: "Mostrar respuesta" }).click();
+  await page.getByRole("button", { name: "Bien", exact: true }).click();
+  await page.getByText("Nada que repasar hoy").waitFor();
+  await page.getByRole("tab", { name: "Tablero" }).click();
+  await page.getByText("Patrimonio neto").waitFor();
+  await shot("21-personal-tablero");
   await page.locator(".top select").selectOption({ index: 1 });
 
   step("video: importar, segmentar, previsualizar y exportar con FFmpeg");

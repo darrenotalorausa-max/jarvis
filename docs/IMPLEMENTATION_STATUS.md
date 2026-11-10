@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-10 · Versión 0.1.0. Este documento distingue lo comprobado de lo que solo está escrito.
 
-**Cómo se comprobó:** 70 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
+**Cómo se comprobó:** 82 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
 y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una instalación limpia en Linux.
 **No se ha ejecutado nada en Windows ni contra proveedores reales** (no había credenciales ni acceso de red a ellos).
 
@@ -30,6 +30,11 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Respaldo | Ciclo crear → modificar → restaurar, sin secretos, copia previa automática, rechazo de respaldos alterados o con rutas inseguras |
 | Interfaz | Primer inicio, las 13 pantallas, estados vacíos, CRUD, video de extremo a extremo, revisión, Shopify, error de conexión, trabajos, respaldo, foco por teclado, movimiento reducido, móvil sin desbordamiento, sin errores de consola ni respuestas 5xx |
 | Diseño | Rediseño con la skill Anti-Slop: tokens, Inter + JetBrains Mono locales, elevación tonal, estados completos, núcleo con progreso real; verificador de la skill sin errores ni avisos (`docs/DESIGN.md`) |
+| Centro de negocios | Misiones por negocio y sección con 12 estados; «completada verificada» exige criterio de cierre y evidencia; resumen que distingue «sin datos» de 0; decisiones; botón Ejecutar que lanza un trabajo real; pausa global de agentes |
+| Avisos y celular | Telegram, WhatsApp Cloud API y ntfy: carga útil, validación, política por evento, exclusión de espacios personales, fallo de aviso que no rompe el trabajo; órdenes por Telegram solo del chat autorizado y sin repetición; acceso al panel en red con código, sesión y límite de intentos |
+| Vida (Health, Mind, Faith, Wealth OS) | 20 tipos de registro con crear, editar, archivar y exportar; tablero con promedios de sueño y ánimo, patrimonio neto por moneda, presupuesto, alertas de suscripciones y vencimientos; repaso espaciado de tarjetas |
+| Biblioteca y skills | 58 documentos (guías de conexión y de vida, tus 36 apuntes, modelos de negocio, atlas); búsqueda; carga de skills propias y su uso al generar contenido; bloqueo de rutas fuera de la biblioteca |
+| Gemma en la API de Gemini | Reintento compatible cuando el modelo rechaza instrucción de sistema o modo JSON |
 | Instalación Unix | `scripts/setup.sh` + `scripts/start.sh` desde un clon limpio (ver ACCEPTANCE.md) |
 
 ## B. Implementado, sin comprobar con credenciales o entorno reales
@@ -38,6 +43,10 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 |---|---|
 | `START_JARVIS.cmd` / `SETUP_JARVIS.cmd` | **Nunca se han ejecutado en Windows.** Escritos sin bloques con paréntesis y en ASCII para minimizar riesgos |
 | Almacén de credenciales de Windows y macOS (`keyring`) | Solo se probó la alternativa en archivo (Linux sin almacén). `pywin32-ctypes` se añadió al lock a mano |
+| Telegram, WhatsApp Cloud API, ntfy | Probados con respuestas simuladas; ningún mensaje real enviado. WhatsApp: no se comprobó la ventana de 24 h de Meta |
+| Acceso desde el celular | Probado con cliente simulado de red; no con un teléfono real ni con el cortafuegos de Windows |
+| Sonido de arranque y señales | Sintetizados con Web Audio; el navegador de pruebas no reproduce audio, no se han escuchado |
+| Guías de la biblioteca | Redactadas con conocimiento general; los pasos de cada proveedor no se comprobaron con cuentas reales y no incluyen precios |
 | Gemini, Groq, API compatible con OpenAI | Adaptadores probados con respuestas simuladas según su formato documentado; sin llamadas reales |
 | Ollama | Probado contra un servidor local que imita su API por HTTP real; no contra Ollama ni un modelo real |
 | Brave Search, Tavily | Formato verificado solo por resultados de búsqueda sobre su documentación (no se pudo abrir la documentación oficial desde el entorno de desarrollo). `count`/`freshness` de Brave y `time_range` de Tavily requieren confirmación |
@@ -49,6 +58,8 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Calidad de los resultados con modelos reales | Los prompts no se han evaluado con ningún modelo real |
 
 ## C. Dependencia externa pendiente (la pones tú)
+
+- **`DOOMSDAY.html`:** no se entregó. Sin él no existe extractor, manifiesto ni matriz de cobertura, y no hay ninguna tarea del manual cargada.
 
 - Claves de API y aceptación de condiciones de cada proveedor; modelo elegido de tu lista.
 - Ollama instalado con un modelo, si quieres IA local.
@@ -74,6 +85,9 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 - Interfaz solo en español.
 
 ## E. No implementado
+
+- **Del superprompt DOOMSDAY:** importación del manual (falta el archivo), multiusuario con roles y espacios de clientes, sincronización local/nube y servidor 24/7, Docker Compose, conectores de Shopify (API), Meta Ads, TikTok, Instagram, YouTube, Google Drive/Sheets/Gmail, Notion, Cloudflare, GitHub, Stripe, PayPal, WooCommerce y Google Ads, monitores proactivos, agentes con memoria propia, aprobaciones desde Telegram, modo claro, calendario y sistema de plugins. Lo que sí existe está en la sección A.
+- **De los 20 módulos de vida:** integraciones con Apple Health, Health Connect o relojes (se cubre con CSV), pedidos a supermercados, escaneo de productos, alarmas, bloqueo de distracciones, tutor que convierta PDF o video en rutas de estudio, análisis del diario con IA, texto bíblico, concordancias y comentarios (Bible Study AI), conexión bancaria, simulación de inversiones y preguntas a tus notas con IA. Son registros, indicadores y guías; no asistentes con IA.
 
 - Envío de mensajes, publicación en redes, activación de campañas o cambios de presupuesto (excluido a propósito en esta versión).
 - Conexión con la API de Shopify (subida a tema borrador o copia): solo exportación ZIP. Tampoco un tema completo de tienda.

@@ -10,6 +10,8 @@ Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el c�
 
 ## Para retomar (en orden de valor)
 
+0. **Importar `DOOMSDAY.html`** cuando el usuario lo aporte: extractor con AST → manifiesto JSON → registros `mission` (campo `source_ref`) → `docs/source-audit.md` y `docs/source-coverage.md` con prueba de cobertura. El modelo de datos y la pantalla ya existen (`records.KINDS["mission"]`, `business.py`, `views/CommandCenter.tsx`); marca `doomsday_manifest` en ajustes al importar.
+
 1. **Validar en Windows** (no se ha ejecutado nunca): `START_JARVIS.cmd` con Python/Node/FFmpeg presentes y ausentes;
    comprobar que `keyring` usa el Administrador de credenciales (Diagnóstico → «Credenciales»). Archivos: `START_JARVIS.cmd`,
    `SETUP_JARVIS.cmd`, `backend/requirements.lock` (marcadores de plataforma añadidos a mano), `backend/jarvis/launch.py`.
@@ -21,6 +23,8 @@ Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el c�
 5. **Sección Shopify en un tema real**: `backend/jarvis/templates/jarvis-landing.liquid`, `handlers/shopify.py`.
 
 ## Mejoras candidatas (no empezadas)
+- Aprobar entregables desde Telegram; plantillas de WhatsApp; conectores de la lista E de `IMPLEMENTATION_STATUS.md`, empezando por Google Drive y Shopify.
+- IA sobre datos personales solo con modelo local: preguntas a las notas, tutor a partir de PDF.
 - Subida a tema borrador por la API de Shopify (con aprobación de envío externo).
 - Reserva de presupuesto por trabajo completo en vez de por llamada.
 - Historial de cambios de registros.

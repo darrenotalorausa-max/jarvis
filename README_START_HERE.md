@@ -60,6 +60,18 @@ nunca en la base de datos, en el navegador ni en los respaldos. Los modelos se e
 Tener una clave no garantiza acceso a todos los modelos ni que el uso sea gratuito: la prueba de conexión te dice qué
 responde de verdad, y la factura de tu proveedor es siempre la referencia.
 
+### Guías dentro de Jarvis
+
+En **Biblioteca → Conectar Jarvis** tienes el paso a paso de cada conexión (qué IA elegir gratis o de pago, Gemini y Gemma, Ollama,
+Groq, búsqueda, Telegram, WhatsApp, ntfy, voz y uso desde el celular) y en **Ajustes recomendados** la configuración sugerida de
+cada sección. Pulsa `Ctrl K` para buscar cualquier módulo o guía.
+
+### Avisos y órdenes desde el celular
+
+- **Telegram** (recomendado): avisos cuando un trabajo termina, falla o te necesita, y órdenes escribiendo a tu bot.
+- **ntfy:** notificaciones push simples. **WhatsApp:** avisos por la API oficial de Meta, con su ventana de 24 horas.
+- **Panel completo en el navegador del celular:** misma wifi, con código de acceso (ver `.env.example`).
+
 ## 5. Qué funciona sin ninguna API
 
 Espacios, proyectos, marcas y biblioteca · archivos · tareas, capturas, enfoque, hábitos, actividad, diario, lecturas y
@@ -91,7 +103,10 @@ Lo que necesita IA te dice qué le falta y espera («Esperando configuración»)
 
 ## 8. Recorrido recomendado para comprobarlo todo
 
-1. `START_JARVIS.cmd` → completa el primer inicio.
+1. `START_JARVIS.cmd` → completa el primer inicio (al abrir suena el encendido; se desactiva en «Sonido»).
+1. **Centro de negocios:** crea una misión, intenta marcarla «completada verificada» sin evidencia (lo impide) y pulsa «Pausar todos los agentes».
+1. **Espacio personal:** registra una noche de sueño, una cuenta y una tarjeta de repaso; mira el Tablero.
+1. **Biblioteca:** abre una guía, carga una skill propia y aplícala en Fábrica de contenido.
 2. **Comando:** escribe `tarea: probar Jarvis`, luego `Resume lo pendiente`.
 3. **Editor audiovisual:** crea un proyecto, importa un video corto, marca inicio/fin, «Añadir segmento», marca 9:16 y 1:1,
    «Previsualizar encuadre aquí», «Exportar segmentos» → abre el entregable.

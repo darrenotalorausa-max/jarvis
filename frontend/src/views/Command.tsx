@@ -1,10 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { api, ApiError, fmtDate } from "../api";
 import { useApp, useData } from "../store";
-import { Core, type CoreState } from "../components/Core";
+import { Core, type CoreState, type DialItem } from "../components/Core";
+import { cue } from "../sound";
 import { JobList } from "../components/shared";
 import { Badge, Btn, Check, FieldRow, Panel, Select, Skeleton, Stat } from "../components/ui";
 
+const DIAL: DialItem[] = [
+  { id: "negocios", code: "NEGOCIOS", label: "Centro de negocios" }, { id: "oportunidades", code: "OPORT", label: "Mesa de oportunidades" }, { id: "leads", code: "LEADS", label: "Leads y ofertas B2B" },
+  { id: "contenido", code: "CONTEN", label: "Fábrica de contenido" }, { id: "video", code: "VIDEO", label: "Editor audiovisual" }, { id: "shopify", code: "SHOP", label: "Constructor Shopify" },
+  { id: "clipping", code: "CLIP", label: "Clipping" }, { id: "revision", code: "REVISAR", label: "Revisión y aprobación" }, { id: "proyectos", code: "PROYEC", label: "Proyectos, marcas y biblioteca" },
+  { id: "operaciones", code: "ECONOM", label: "Operaciones y economía" }, { id: "personal", code: "PERSONAL", label: "Espacio personal" }, { id: "biblioteca", code: "BIBLIO", label: "Biblioteca" },
+  { id: "conexiones", code: "CONEX", label: "Conexiones" }, { id: "sistema", code: "SISTEMA", label: "Trabajos, uso y diagnóstico" },
+];
 type Msg = { id: number | string; role: string; content: string; data?: any; created_at?: string };
 type VoicePrefs = { stt: string; tts: string; autoSend: boolean };
 
@@ -142,7 +150,7 @@ export function Command() {
       r.onerror = (ev: any) => { if (ev.error !== "aborted") notify(MIC_ERRORS[ev.error] || `Fallo del reconocimiento de voz (${ev.error}). Sigue por texto.`, "error"); };
       r.onend = () => { stopMeter(); setListening(false); rec.current = null; if (prefs.autoSend && heard.current.trim()) send(heard.current, "voz"); };
       rec.current = r;
-      try { r.start(); setListening(true); startMeter(); } catch { notify("No se pudo iniciar el micrófono. Sigue por texto.", "error"); }
+      try { r.start(); setListening(true); startMeter(); cue("mic"); } catch { notify("No se pudo iniciar el micrófono. Sigue por texto.", "error"); }
     } else if (prefs.stt === "servidor" && canRecord) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -170,6 +178,7 @@ export function Command() {
         rec.current = mr;
         mr.start();
         startMeter(stream);
+        cue("mic");
         setListening(true);
       } catch {
         notify(MIC_ERRORS["not-allowed"], "error");
@@ -219,7 +228,7 @@ export function Command() {
       </div>
 
       <div className="command__center">
-        <Core state={state} detail={detail} progress={progress} running={running} count={awaiting} levelRef={level} />
+        <Core state={state} detail={detail} progress={progress} running={running} count={awaiting} levelRef={level} dial={DIAL} />
         <Panel className="grid" title="Jarvis">
           <div className="chat" aria-live="polite">
             {!msgs.length && <p className="muted small">Escribe una orden o mantén pulsado el micrófono. Ejemplos: «Busca oportunidades en accesorios para mascotas», «Resume lo pendiente», «tarea: llamar al gestor», «ayuda».</p>}
@@ -279,10 +288,13 @@ export function Command() {
         <Panel title="Actividad" actions={<Btn small onClick={() => nav("sistema")}>Ver todo</Btn>}>
           <JobList limit={7} empty="Sin trabajos en este espacio. Lanza uno desde una orden o desde cualquier módulo." />
         </Panel>
-        <Panel title="Accesos">
-          <div className="row">
-            {[["oportunidades", "Oportunidades"], ["leads", "Leads"], ["contenido", "Contenido"], ["video", "Video"], ["revision", "Revisión"], ["personal", "Personal"]].map(([r, t]) => <Btn small key={r} onClick={() => nav(r)}>{t}</Btn>)}
-          </div>
+        <Panel title="Sistema">
+          <dl className="kv">
+            <dt>Worker</dt><dd>{overview.data?.worker_alive ? "activo" : "detenido"}</dd>
+            <dt>Agentes</dt><dd>{boot.settings.agents_paused ? <span className="amber">en pausa</span> : `${running} en ejecución`}</dd>
+            <dt>Espacio</dt><dd>{space.name} · {boot.ai_policies[space.ai_policy]}</dd>
+            <dt>Atajos</dt><dd><span className="mono">Ctrl K</span> buscar · anillo exterior del núcleo para ir a un módulo</dd>
+          </dl>
           {!overview.data?.worker_alive && <p className="note note--amber">El worker no está activo: los trabajos quedarán en cola hasta que reinicies Jarvis con el lanzador.</p>}
         </Panel>
       </div>

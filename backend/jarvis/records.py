@@ -48,7 +48,7 @@ KINDS: dict[str, dict] = {
     # --- Economía
     "transaction": {"label": "Movimiento", "plural": "Movimientos", "module": "economia", "statuses": ["vigente", "anulado"], "fields": [
         F("type", "Tipo", "select", options=["ingreso", "gasto", "credito", "suscripcion"], required=True),
-        F("stage", "Estado económico", "select", options=["acordado", "facturado", "cobrado", "pagado"], required=True),
+        F("stage", "Estado económico", "select", options=["proyectado", "acordado", "facturado", "cobrado", "pagado"], required=True),
         F("amount", "Importe", "number", required=True), F("currency", "Moneda"), F("date", "Fecha", "date"),
         F("counterparty", "Contraparte"), F("category", "Categoría"), F("external_id", "Referencia externa"),
         F("notes", "Notas", "textarea")]},
@@ -110,7 +110,7 @@ KINDS: dict[str, dict] = {
         F("body", "Texto", "textarea"), F("origin", "Origen", "select", options=["texto", "voz"])]},
     "focus_block": {"label": "Bloque de enfoque", "plural": "Bloques de enfoque", "module": "personal", "statuses": ["planificado", "completado", "omitido"], "fields": [
         F("date", "Fecha", "date"), F("start_time", "Hora de inicio"), F("minutes", "Minutos", "number"),
-        F("goal", "Objetivo", "textarea"), F("outcome", "Resultado", "textarea")]},
+        F("goal", "Objetivo", "textarea"), F("interruptions", "Interrupciones", "number"), F("outcome", "Resultado", "textarea")]},
     "habit": {"label": "Hábito", "plural": "Hábitos", "module": "personal", "statuses": ["activo", "pausado"], "fields": [
         F("frequency", "Frecuencia", "select", options=["diario", "semanal"]), F("target", "Meta"), F("notes", "Notas", "textarea")]},
     "habit_log": {"label": "Registro de hábito", "plural": "Registros de hábitos", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
@@ -121,7 +121,7 @@ KINDS: dict[str, dict] = {
         F("intensity", "Intensidad", "select", options=["suave", "moderada", "alta"]), F("sleep_hours", "Horas de sueño", "number"),
         F("notes", "Notas", "textarea")]},
     "journal": {"label": "Entrada de diario", "plural": "Diario privado", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
-        F("date", "Fecha", "date"), F("body", "Texto", "textarea")]},
+        F("date", "Fecha", "date"), F("mood", "Ánimo (1 bajo – 5 alto)", "select", options=["1", "2", "3", "4", "5"]), F("body", "Texto", "textarea")]},
     "reading": {"label": "Lectura o aprendizaje", "plural": "Lecturas y aprendizaje", "module": "personal", "statuses": ["pendiente", "en_curso", "terminado"], "fields": [
         F("author", "Autor o fuente"), F("type", "Tipo", "select", options=["libro", "curso", "articulo", "otro"]),
         F("progress", "Progreso"), F("notes", "Notas", "textarea"), F("takeaways", "Aprendizajes", "textarea")]},
@@ -152,6 +152,69 @@ KINDS: dict[str, dict] = {
     "skill": {"label": "Habilidad", "plural": "Habilidades por aprender", "module": "personal", "statuses": ["pendiente", "en_curso", "practicando", "dominada"], "fields": [
         F("why", "Para qué la quiero", "textarea"), F("plan", "Plan de práctica", "textarea"), F("resources", "Recursos", "textarea"),
         F("weekly_hours", "Horas por semana", "number"), F("next_review", "Próximo repaso", "date"), F("guide", "Guía de la biblioteca")]},
+    # --- HEALTH OS (cuerpo)
+    "workout": {"label": "Entrenamiento", "plural": "Entrenamientos", "module": "personal", "statuses": ["hecho", "planificado", "omitido"], "private": True, "fields": [
+        F("date", "Fecha", "date"), F("type", "Tipo", "select", options=["fuerza", "cardio", "movilidad", "deporte", "otro"]), F("minutes", "Minutos", "number"),
+        F("exercises", "Ejercicios (uno por línea: ejercicio | series x repeticiones | carga)", "textarea"),
+        F("effort", "Esfuerzo percibido", "select", options=["suave", "moderado", "alto", "maximo"]),
+        F("recovery", "Cómo llegué (recuperación)", "select", options=["fresco", "normal", "cansado", "dolorido"]), F("notes", "Notas", "textarea")]},
+    "meal": {"label": "Comida", "plural": "Plan de comidas", "module": "personal", "statuses": ["planificada", "hecha"], "private": True, "fields": [
+        F("date", "Fecha", "date"), F("meal", "Momento", "select", options=["desayuno", "comida", "cena", "snack"]), F("ingredients", "Ingredientes", "textarea"),
+        F("calories", "Calorías (si las conoces)", "number"), F("protein_g", "Proteína (g)", "number"), F("cost", "Costo", "number"), F("notes", "Receta o notas", "textarea")]},
+    "pantry": {"label": "Producto", "plural": "Despensa y lista de mercado", "module": "personal", "statuses": ["en_casa", "por_comprar", "agotado"], "private": True, "fields": [
+        F("quantity", "Cantidad", "number"), F("unit", "Unidad"), F("expiry", "Caduca", "date"), F("store", "Dónde comprarlo"), F("est_cost", "Costo estimado", "number")]},
+    "sleep": {"label": "Noche", "plural": "Sueño", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
+        F("date", "Fecha (la mañana en que despiertas)", "date", required=True), F("bedtime", "Hora de acostarte"), F("wake_time", "Hora de despertar"),
+        F("hours", "Horas dormidas", "number", required=True), F("quality", "Calidad", "select", options=["1", "2", "3", "4", "5"]),
+        F("naps_minutes", "Siestas (min)", "number"), F("notes", "Notas", "textarea")]},
+    "wardrobe": {"label": "Prenda", "plural": "Armario", "module": "personal", "statuses": ["en_uso", "retirada"], "private": True, "fields": [
+        F("category", "Categoría", "select", options=["superior", "inferior", "calzado", "abrigo", "accesorio", "formal", "deporte"]), F("color", "Color"),
+        F("season", "Temporada"), F("combos", "Combina con", "textarea"), F("photo_file_id", "ID de la foto (súbela en Proyectos → Archivos)"), F("notes", "Notas", "textarea")]},
+    "care_routine": {"label": "Rutina de cuidado", "plural": "Cuidado personal", "module": "personal", "statuses": ["activa", "pausada"], "private": True, "fields": [
+        F("frequency", "Frecuencia"), F("steps", "Pasos", "textarea"), F("products", "Productos", "textarea"), F("next_date", "Próxima cita o recordatorio", "date")]},
+    "health_record": {"label": "Registro de salud", "plural": "Historial de salud", "module": "personal", "statuses": ["vigente", "resuelto"], "private": True, "fields": [
+        F("type", "Tipo", "select", options=["cita", "resultado", "medicamento", "vacuna", "pregunta_para_el_medico", "otro"], required=True), F("date", "Fecha", "date"),
+        F("professional", "Profesional o centro"), F("detail", "Detalle", "textarea"), F("next_date", "Próxima fecha", "date"), F("file_id", "ID del archivo adjunto")]},
+    # --- MIND OS
+    "flashcard": {"label": "Tarjeta", "plural": "Tarjetas de repaso", "module": "personal", "statuses": ["activa", "suspendida"], "fields": [
+        F("deck", "Mazo o tema"), F("back", "Respuesta", "textarea", required=True), F("due", "Próximo repaso", "date"),
+        F("interval_days", "Intervalo (días)", "number"), F("ease", "Facilidad", "number"), F("reps", "Repasos seguidos", "number")]},
+    "choice": {"label": "Decisión personal", "plural": "Decisiones", "module": "personal", "statuses": ["abierta", "decidida", "evaluada"], "private": True, "fields": [
+        F("options", "Alternativas (una por línea)", "textarea", required=True), F("criteria", "Qué importa de verdad", "textarea"),
+        F("pros_cons", "Ventajas y desventajas", "textarea"), F("risks", "Riesgos y qué haría si salen mal", "textarea"),
+        F("chosen", "Qué decidí"), F("reason", "Por qué (con lo que sabía entonces)", "textarea"), F("review_date", "Cuándo la evalúo", "date"), F("outcome", "Qué pasó", "textarea")]},
+    # --- FAITH OS
+    "devotional": {"label": "Tiempo devocional", "plural": "Lectura y devocional", "module": "personal", "statuses": ["hecho", "planificado"], "private": True, "fields": [
+        F("date", "Fecha", "date"), F("passage", "Pasaje (referencia)"), F("type", "Tipo", "select", options=["lectura", "devocional", "estudio", "memorizacion"]),
+        F("minutes", "Minutos", "number"), F("notes", "Mis anotaciones", "textarea")]},
+    "prayer": {"label": "Oración", "plural": "Diario de oración", "module": "personal", "statuses": ["abierta", "en_seguimiento", "respondida"], "private": True, "fields": [
+        F("type", "Tipo", "select", options=["peticion", "agradecimiento", "intercesion", "confesion"]), F("date", "Fecha", "date"),
+        F("body", "Texto", "textarea"), F("follow_up", "Seguimiento", "textarea")]},
+    "study_note": {"label": "Nota de estudio", "plural": "Estudio bíblico", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
+        F("passage", "Pasaje"), F("topic", "Tema"), F("source", "Traducción o comentario consultado (cítalo)"),
+        F("text", "Texto citado", "textarea"), F("body", "Mi interpretación y preguntas", "textarea")]},
+    "ministry_event": {"label": "Actividad", "plural": "Comunidad y ministerio", "module": "personal", "statuses": ["planificada", "realizada", "cancelada"], "fields": [
+        F("date", "Fecha", "date"), F("place", "Lugar"), F("team", "Equipo responsable"), F("volunteers", "Voluntarios y tareas", "textarea"),
+        F("materials", "Materiales", "textarea"), F("consent", "Consentimiento para guardar datos de participantes", "select", options=["no_se_guardan_datos", "consentimiento_obtenido"]),
+        F("notes", "Notas", "textarea")]},
+    # --- WEALTH OS
+    "account": {"label": "Cuenta", "plural": "Cuentas, activos y deudas", "module": "personal", "statuses": ["activa", "cerrada"], "private": True, "fields": [
+        F("type", "Tipo", "select", options=["efectivo", "banco", "inversion", "propiedad", "otro_activo", "tarjeta", "prestamo", "otra_deuda"], required=True),
+        F("balance", "Saldo (deudas en positivo)", "number", required=True), F("currency", "Moneda"), F("updated", "Saldo actualizado el", "date"), F("notes", "Notas", "textarea")]},
+    "budget": {"label": "Presupuesto", "plural": "Presupuesto mensual", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
+        F("category", "Categoría (igual que en tus movimientos)", required=True), F("monthly_limit", "Límite mensual", "number", required=True), F("currency", "Moneda")]},
+    "investment": {"label": "Inversión", "plural": "Inversiones", "module": "personal", "statuses": ["abierta", "cerrada"], "private": True, "fields": [
+        F("asset_type", "Tipo de activo", "select", options=["renta_fija", "fondos_indexados", "acciones", "inmuebles", "negocio", "cripto", "otro"]),
+        F("invested", "Aportado", "number"), F("current_value", "Valor actual", "number"), F("currency", "Moneda"), F("valued_on", "Valorado el", "date"),
+        F("risk", "Riesgo", "select", options=["bajo", "medio", "alto"]), F("thesis", "Tesis: por qué la tengo y cuándo saldría", "textarea"), F("review_date", "Revisar el", "date")]},
+    "subscription": {"label": "Suscripción", "plural": "Suscripciones", "module": "personal", "statuses": ["activa", "cancelada"], "fields": [
+        F("amount", "Importe", "number", required=True), F("currency", "Moneda"), F("period", "Periodo", "select", options=["mensual", "anual", "otro"]),
+        F("renewal_date", "Próxima renovación", "date"), F("category", "Categoría"), F("last_used", "Último uso", "date"),
+        F("needed", "¿La necesito?", "select", options=["si", "dudoso", "no"]), F("notes", "Notas", "textarea")]},
+    "admin_doc": {"label": "Documento", "plural": "Contratos y administración", "module": "personal", "statuses": ["pendiente", "vigente", "cumplido"], "fields": [
+        F("type", "Tipo", "select", options=["contrato", "factura", "obligacion", "licencia", "poliza", "documento"], required=True), F("counterparty", "Contraparte"),
+        F("amount", "Importe", "number"), F("currency", "Moneda"), F("due_date", "Vence o se renueva", "date"), F("file_id", "ID del archivo adjunto"),
+        F("checklist", "Lista de revisión (para tu abogado o contador)", "textarea"), F("notes", "Notas", "textarea")]},
     # --- Editor audiovisual (estructura propia validada en handlers.video)
     "video_project": {"label": "Proyecto de video", "plural": "Proyectos de video", "module": "video", "statuses": ["en_edicion", "exportado"], "free_data": True, "fields": [
         F("mode", "Modo", "select", options=["clipping", "publicidad", "marca_personal", "formacion"])]},

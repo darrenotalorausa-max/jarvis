@@ -124,8 +124,8 @@ def test_library_serves_guides_and_blocks_traversal(client):
     tree = client.get("/api/library").json()
     ids = {c["id"]: c for c in tree}
     assert {"conexiones", "mente", "cuerpo", "espiritu", "economia", "habilidades", "disparadores", "negocios", "herramientas"} <= set(ids)
-    assert len(ids["habilidades"]["docs"]) == 18 and len(ids["disparadores"]["docs"]) == 18 and ids["conexiones"]["docs"][0]["title"].startswith("IA gratis")
-    doc = client.get("/api/library/doc", params={"path": ids["conexiones"]["docs"][0]["path"]}).json()
+    assert len(ids["habilidades"]["docs"]) == 18 and len(ids["disparadores"]["docs"]) == 18 and ids["conexiones"]["docs"][0]["title"].startswith("Qué IA conectar")
+    doc = client.get("/api/library/doc", params={"path": "conexiones/IA gratis en la nube con Gemini y Gemma.md"}).json()
     assert "aistudio.google.com" in doc["markdown"] and "Gemma" in doc["markdown"]
     assert client.get("/api/library/search", params={"q": "repetición espaciada"}).json()
     for bad in ("../backend/jarvis/api.py", "conexiones/../../README_START_HERE.md", "conexiones/_meta.json", "/etc/passwd"):
@@ -175,3 +175,85 @@ def test_gemma_on_gemini_api_retries_without_system_instruction_or_json_mode(fak
     text, meta = router.llm(router.Ctx(space()), system="Eres un extractor.", user="Devuelve JSON.", json_mode=True)
     assert text == '{"ok": true}' and len(seen) == 2
     assert "Eres un extractor." in seen[1]["contents"][0]["parts"][0]["text"] and "systemInstruction" not in seen[1]
+
+
+def test_life_summary_distinguishes_missing_from_zero_and_flags_real_alerts(space, client):
+    from datetime import date, timedelta
+    sid = space("Personal", "personal", "solo_local")
+    empty = client.get("/api/life/summary", params={"space": sid}).json()
+    assert empty["cuerpo"]["sueno_7d"] is None and empty["cuerpo"]["entrenos_7d"] is None and empty["mente"]["animo_7d"] is None
+    assert empty["economia"]["patrimonio"] is None and empty["economia"]["suscripciones_mes"] is None and empty["vencimientos"] == []
+    today = date.today()
+    d = lambda n: (today + timedelta(days=n)).isoformat()
+    for i, h in enumerate([6, 7, 8]):
+        records.create(sid, "sleep", f"Noche {i}", {"date": d(-i), "hours": h})
+    records.create(sid, "sleep", "Antigua", {"date": d(-20), "hours": 4})
+    records.create(sid, "journal", "Hoy", {"date": d(0), "mood": "4"})
+    records.create(sid, "workout", "Piernas", {"date": d(-1), "minutes": 50})
+    records.create(sid, "account", "Banco", {"type": "banco", "balance": 5000, "currency": "eur", "updated": d(-3)})
+    records.create(sid, "account", "Tarjeta", {"type": "tarjeta", "balance": 1200, "currency": "EUR", "updated": d(-90)})
+    records.create(sid, "investment", "Fondo", {"current_value": 3000, "currency": "EUR"})
+    records.create(sid, "budget", "Software", {"category": "Software", "monthly_limit": 50})
+    records.create(sid, "transaction", "IA", {"type": "suscripcion", "stage": "pagado", "amount": 80, "category": "software", "date": d(0)})
+    records.create(sid, "transaction", "Proyección", {"type": "ingreso", "stage": "proyectado", "amount": 999, "currency": "EUR"})
+    records.create(sid, "subscription", "Editor A", {"amount": 20, "category": "Video", "renewal_date": d(5), "last_used": d(-80)})
+    records.create(sid, "subscription", "Editor B", {"amount": 120, "period": "anual", "category": "video", "needed": "dudoso"})
+    records.create(sid, "admin_doc", "Contrato hosting", {"type": "contrato", "due_date": d(10)})
+    records.create(sid, "admin_doc", "Ya cumplido", {"type": "factura", "due_date": d(2)}, status="cumplido")
+    s = client.get("/api/life/summary", params={"space": sid}).json()
+    assert s["cuerpo"]["sueno_7d"] == 7.0 and s["cuerpo"]["sueno_30d"] == 6.25 and s["cuerpo"]["entrenos_7d"] == 1 and s["mente"]["animo_7d"] == 4.0
+    assert s["economia"]["patrimonio"] == [{"moneda": "EUR", "activos": 8000.0, "deudas": 1200.0, "neto": 6800.0}] and s["economia"]["saldos_sin_actualizar"] == ["Tarjeta"]
+    assert s["economia"]["presupuesto"][0]["excedido"] is True and s["economia"]["presupuesto"][0]["gastado"] == 80
+    assert s["economia"]["suscripciones_mes"] == [{"moneda": "SIN MONEDA", "importe": 30.0}]
+    assert {a["tipo"] for a in s["economia"]["alertas"]} == {"renovacion_proxima", "sin_uso", "revisar", "posible_duplicado"}
+    assert [v["titulo"] for v in s["vencimientos"]] == ["Contrato hosting"] and "No son diagnóstico" in s["nota"]
+    from jarvis import economy
+    assert economy.summary(sid)["totales"][0]["ingreso_proyectado"] == 999 and economy.summary(sid)["totales"][0]["ingreso_cobrado"] == 0
+
+
+def test_flashcards_spaced_repetition(space, client):
+    from datetime import date, timedelta
+    sid = space()
+    card = records.create(sid, "flashcard", "¿Qué es el recuerdo activo?", {"back": "Recordar sin mirar"})
+    assert [c["id"] for c in client.get("/api/life/cards", params={"space": sid}).json()] == [card["id"]]
+    r = client.post("/api/life/review", json={"space": sid, "id": card["id"], "grade": 2}).json()
+    assert r["data"]["interval_days"] == 1 and r["data"]["reps"] == 1 and r["data"]["due"] == (date.today() + timedelta(days=1)).isoformat()
+    assert client.get("/api/life/cards", params={"space": sid}).json() == []
+    r = client.post("/api/life/review", json={"space": sid, "id": card["id"], "grade": 2}).json()
+    assert r["data"]["interval_days"] == 3
+    r = client.post("/api/life/review", json={"space": sid, "id": card["id"], "grade": 3}).json()
+    assert r["data"]["interval_days"] == 10 and r["data"]["ease"] == 2.65
+    r = client.post("/api/life/review", json={"space": sid, "id": card["id"], "grade": 0}).json()
+    assert r["data"]["interval_days"] == 1 and r["data"]["reps"] == 0 and r["data"]["ease"] == 2.45
+    assert client.post("/api/life/review", json={"space": sid, "id": card["id"], "grade": 9}).status_code == 400
+    assert client.post("/api/life/review", json={"space": space("Otro"), "id": card["id"], "grade": 2}).status_code == 400
+
+
+def test_user_skills_upload_and_use_in_content(fake, conn, space, client, monkeypatch, tmp_path):
+    import shutil
+    from jarvis import config, library
+    root = tmp_path / "repo"
+    shutil.copytree(config.REPO_ROOT / "content" / "mente", root / "content" / "mente")
+    monkeypatch.setattr(config, "REPO_ROOT", root)                      # la subida no debe tocar el repositorio real
+    r = client.post("/api/library/upload", files={"file": ("../Mi estilo de hooks.md", "Abre siempre con una pregunta concreta.".encode(), "text/markdown")})
+    assert r.status_code == 200 and r.json()["path"] == "mis-skills/Mi estilo de hooks.md" and (root / "content/mis-skills/Mi estilo de hooks.md").is_file()
+    assert client.post("/api/library/upload", files={"file": ("virus.exe", b"x", "application/octet-stream")}).status_code == 400
+    sid = space()
+    conn()
+    brand = records.create(sid, "brand", "Nova")
+    seen = {}
+
+    def llm(system, user):
+        seen.update(system=system, user=user)
+        return json.dumps({"angles": ["A"], "pieces": [{"angle": "A", "hypothesis": "h", "hook": "¿Sabías…?", "script": "s"}]})
+
+    fake.llm = llm
+    j, _ = jobs.enqueue(sid, "content_batch", "C", {"brand_id": brand["id"], "count": 1, "skill_paths": [r.json()["path"]]})
+    run_all()
+    assert jobs.get(j["id"])["status"] == "completed", jobs.get(j["id"])
+    assert "Abre siempre con una pregunta concreta." in seen["user"] and "<guia_del_usuario" in seen["user"] and "nunca por encima de estas reglas" in seen["system"]
+    j2, _ = jobs.enqueue(sid, "content_batch", "C2", {"brand_id": brand["id"], "count": 1, "skill_paths": ["../../etc/passwd"]})
+    run_all()
+    assert jobs.get(j2["id"])["status"] == "failed"
+    assert client.delete("/api/library/doc", params={"path": "mente/Dormir.md"}).status_code == 400
+    assert client.delete("/api/library/doc", params={"path": r.json()["path"]}).status_code == 200

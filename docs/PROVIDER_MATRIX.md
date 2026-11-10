@@ -13,6 +13,9 @@ el modelo se elige del listado real de la cuenta y los precios los introduce el 
 | Tavily | Búsqueda | `https://api.tavily.com` | `Authorization: Bearer` | `POST /search` (`query`, `max_results`, `search_depth`, `time_range`) | Respuestas simuladas |
 | ElevenLabs | Voz | `https://api.elevenlabs.io` | `xi-api-key` | `GET /v2/voices`, `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128` | Sin llamada real |
 | faster-whisper (local) | Transcripción | — | — | Paquete opcional de Python | Sin modelo descargado |
+| Telegram | Avisos y órdenes | `https://api.telegram.org` | Token del bot en la ruta | `POST /bot<token>/sendMessage`, `GET /bot<token>/getUpdates` | Respuestas simuladas |
+| WhatsApp Cloud API | Avisos (solo salientes) | `https://graph.facebook.com/v21.0` | `Authorization: Bearer` | `POST /{phone_number_id}/messages` (texto libre; exige ventana de 24 h) | Respuestas simuladas |
+| ntfy | Avisos push | `https://ntfy.sh` | Opcional `Authorization: Bearer` | `POST /{tema}` con cabecera `Title` | Respuestas simuladas |
 | Webhook de exportación | Envío externo | (la indicas tú) | — | `POST` JSON del entregable aprobado | Destino simulado |
 
 \* Capacidad opcional: márcala en la conexión solo si tu modelo la soporta. «Compatible con OpenAI» describe el formato de la

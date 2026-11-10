@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { api, ApiError, type Job, type KindSpec, type Space } from "./api";
+import { bootSound, cue } from "./sound";
 
 export type Boot = {
   version: string; settings: Record<string, any>; spaces: Space[]; space_kinds: Record<string, string>; ai_policies: Record<string, string>;
@@ -25,6 +26,7 @@ const parseRoute = () => (location.hash.replace(/^#\/?/, "") || "").split("/").f
 export function AppProvider({ children, fallback, onboarding }: { children: ReactNode; fallback: (error: string | null, retry: () => void) => ReactNode; onboarding: (boot: Boot, reload: () => Promise<void>) => ReactNode }) {
   const [boot, setBoot] = useState<Boot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [needLogin, setNeedLogin] = useState(false);
   const [spaceId, setSpaceId] = useState(pref("jarvis.space", ""));
   const [mode, setModeState] = useState<"command" | "workspace">(pref("jarvis.mode", "command") as any);
   const [route, setRoute] = useState<string[]>(parseRoute());
@@ -37,8 +39,11 @@ export function AppProvider({ children, fallback, onboarding }: { children: Reac
     try {
       setBoot(await api<Boot>("/bootstrap"));
       setError(null);
+      setNeedLogin(false);
+      bootSound();
     } catch (e) {
-      setError((e as Error).message);
+      if (e instanceof ApiError && e.status === 401) setNeedLogin(true);
+      else setError((e as Error).message);
     }
   }, []);
   useEffect(() => { reload(); }, [reload]);
@@ -85,7 +90,7 @@ export function AppProvider({ children, fallback, onboarding }: { children: Reac
       if (job.space_id !== space.id) return;
       setJobs((list) => {
         const prev = list.find((j) => j.id === job.id);
-        if (TERMINAL.includes(job.status) && (!prev || !TERMINAL.includes(prev.status))) setDoneTick((n) => n + 1);
+        if (TERMINAL.includes(job.status) && (!prev || !TERMINAL.includes(prev.status))) { setDoneTick((n) => n + 1); cue(job.status === "completed" ? "done" : job.status === "failed" ? "fail" : "tick"); }
         return prev ? list.map((j) => (j.id === job.id ? job : j)) : [job, ...list];
       });
     });
@@ -98,9 +103,30 @@ export function AppProvider({ children, fallback, onboarding }: { children: Reac
     route, nav: (p) => { location.hash = `#/${p}`; }, jobs, doneTick, refreshJobs, notify, run,
   } : null, [boot, space, mode, route, jobs, doneTick, reload, refreshJobs, notify, run]);
 
+  if (needLogin) return <Login onDone={reload} />;
   if (!boot) return <>{fallback(error, reload)}</>;
   if (!boot.settings.onboarded || !space || !value) return <>{onboarding(boot, reload)}<Toasts items={toasts} /></>;
   return <C.Provider value={value}>{children}<Toasts items={toasts} /></C.Provider>;
+}
+
+function Login({ onDone }: { onDone: () => void }) {
+  const [code, setCode] = useState("");
+  const [err, setErr] = useState("");
+  const submit = async () => {
+    try { await api("/login", { body: { code } }); onDone(); } catch (e) { setErr((e as Error).message); }
+  };
+  return (
+    <div className="splash">
+      <form className="panel stack" style={{ width: "min(380px, 100%)", textAlign: "left" }} onSubmit={(e) => { e.preventDefault(); submit(); }}>
+        <h1 className="page__title">Jarvis OS</h1>
+        <p className="muted">Estás entrando desde otro dispositivo. Introduce el código de acceso que definiste en el archivo .env del equipo principal.</p>
+        <label className="field"><span className="field__label">Código de acceso</span>
+          <input className="input" type="password" autoComplete="current-password" value={code} onChange={(e) => setCode(e.target.value)} /></label>
+        {err && <div className="errorbox" role="alert">{err}</div>}
+        <button className="btn btn--primary" type="submit" disabled={!code}>Entrar</button>
+      </form>
+    </div>
+  );
 }
 
 function Toasts({ items }: { items: Toast[] }) {
