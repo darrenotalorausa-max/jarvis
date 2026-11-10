@@ -92,6 +92,8 @@ def enqueue(space_id: str, type_: str, title: str, params: dict, *, idempotency_
 
 
 def claim(worker_id: str, exclude_types: tuple[str, ...] = ()) -> dict | None:
+    if db.get_setting("agents_paused", False):
+        return None  # el propietario pausó todos los agentes: nada nuevo se ejecuta hasta que reanude
     with db.tx(immediate=True) as conn:
         sql = "SELECT id FROM jobs WHERE (status='pending' OR (status='waiting_quota' AND resume_at IS NOT NULL AND resume_at<=?)) AND (resume_at IS NULL OR resume_at<=?)"
         params: list = [now_iso(), now_iso()]

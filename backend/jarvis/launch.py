@@ -27,8 +27,16 @@ def main() -> int:
         print(f"[Jarvis] El puerto {port} ya está en uso. Si Jarvis ya está abierto, entra en {url}\n"
               f"         Si lo usa otro programa, define JARVIS_PORT con otro número y vuelve a iniciar.")
         return 2
-    if host not in ("127.0.0.1", "localhost"):
-        print(f"[Jarvis] AVISO: JARVIS_HOST={host} expone la aplicación fuera de este equipo. No hay autenticación: úsalo solo en redes de confianza.")
+    from . import access
+    if access.exposed():
+        if not access.enabled():
+            print(f"[Jarvis] No se inicia: JARVIS_HOST={host} abre Jarvis a tu red, y eso exige definir JARVIS_ACCESS_CODE\n"
+                  f"         (10 caracteres o más) en el archivo .env. Sin código de acceso, deja JARVIS_HOST sin definir.")
+            return 2
+        print("[Jarvis] ACCESO EN RED ACTIVADO: otros dispositivos de tu red pueden entrar con el código de acceso.\n"
+              "         La conexión no va cifrada: úsalo solo en tu red de casa, nunca en redes públicas.")
+        for u in access.lan_urls():
+            print(f"[Jarvis] Desde tu celular (misma wifi): {u}")
     print(f"[Jarvis] Base de datos: {config.db_path()}" + (f" (migraciones aplicadas: {applied})" if applied else ""))
     worker_log = open(config.logs_dir() / "worker.out.log", "a", encoding="utf-8")
     worker = subprocess.Popen([sys.executable, "-m", "jarvis.worker"], cwd=str(config.REPO_ROOT / "backend"), stdout=worker_log, stderr=subprocess.STDOUT, env={**os.environ, "JARVIS_RECOVER_ALL": "1"})

@@ -205,13 +205,27 @@ def _capture(space_id: str, a: CaptureArgs) -> dict:
     return {"reply": f"Captura guardada ({rec['id']}).", "speak": "Anotado.", "record": rec["id"]}
 
 
+@tool("pausar_agentes", "Pausa todos los agentes: no se inicia ningún trabajo nuevo hasta reanudar.", NoArgs, "registro")
+def _pause(space_id: str, a: NoArgs) -> dict:
+    db.set_setting("agents_paused", True)
+    db.audit("agentes.pausar", "", {}, actor="asistente")
+    return {"reply": "Agentes en pausa. No se iniciará ningún trabajo nuevo; los que estén en curso terminan su etapa actual. Di «reanuda los agentes» para continuar.", "speak": "Agentes en pausa."}
+
+
+@tool("reanudar_agentes", "Reanuda los agentes tras una pausa.", NoArgs, "registro")
+def _resume(space_id: str, a: NoArgs) -> dict:
+    db.set_setting("agents_paused", False)
+    db.audit("agentes.reanudar", "", {}, actor="asistente")
+    return {"reply": "Agentes reanudados. La cola vuelve a ejecutarse.", "speak": "Agentes reanudados."}
+
+
 def tool_specs() -> list[dict]:
     return [{"name": t["name"], "description": t["description"], "kind": t["kind"], "args": t["args"].model_json_schema().get("properties", {})} for t in TOOLS.values()]
 
 
 HELP = ("Puedo: buscar oportunidades («busca oportunidades en …»), buscar leads («busca leads de … en …»), preparar propuestas, "
         "generar contenido («genera contenido para la marca …»), resumir lo pendiente, mostrar el estado de los trabajos, cancelar un trabajo, "
-        "mostrar costos y cuotas, listar las fuentes usadas y anotar tareas o capturas («anota …», «tarea: …»).")
+        "mostrar costos y cuotas, listar las fuentes usadas, pausar o reanudar todos los agentes y anotar tareas o capturas («anota …», «tarea: …»).")
 
 _JOB_ID = re.compile(r"job_[0-9a-f]{12}")
 _DELIV_ID = re.compile(r"ent_[0-9a-f]{12}")
@@ -227,6 +241,10 @@ def parse_command(text: str) -> tuple[str, dict] | None:
         return "capturar", {"text": re.sub(r"^\S+\s*:?\s*", "", raw), "as_task": True}
     if m := re.match(r"^(anota|apunta|recuerda|captura)(?:\s+que)?\s*:?\s+(.+)$", raw, flags=re.I | re.S):
         return "capturar", {"text": m.group(2)}
+    if re.search(r"\b(pausa|deten|para)\w*\s+(a\s+)?(todos\s+)?(los\s+)?agentes", n):
+        return "pausar_agentes", {}
+    if re.search(r"\b(reanuda|continua|activa)\w*\s+(a\s+)?(todos\s+)?(los\s+)?agentes", n):
+        return "reanudar_agentes", {}
     if re.search(r"\bcancela", n):
         return "cancelar_trabajo", {"job_id": job.group(0) if job else ""}
     if m := re.search(r"busca\w*\s+(?:nuevas\s+)?oportunidades?\s+(?:de negocio\s+)?(?:en|de|sobre|para)?\s*(.+)", raw, flags=re.I):

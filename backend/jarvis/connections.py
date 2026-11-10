@@ -6,6 +6,7 @@ from .providers import base, llm, search, voice
 from .providers.base import ProviderError, STATUS_LABELS
 from .util import dumps, loads, new_id, now, now_iso
 
+NOTIFY_PROVIDERS = ("telegram", "whatsapp", "ntfy")
 CAPABILITIES = {
     "texto": "Texto", "extraccion": "Extracción estructurada (JSON)", "vision": "Visión (imágenes)",
     "busqueda": "Búsqueda web", "transcripcion": "Transcripción", "voz": "Síntesis de voz",
@@ -33,6 +34,13 @@ PROVIDERS = {
     "whisper_local": {"label": "Transcripción local (faster-whisper)", "base_url": "", "needs_secret": False, "local": True,
                       "capabilities": ["transcripcion"], "optional": [],
                       "help": "Requiere instalar el paquete opcional faster-whisper; el modelo se descarga la primera vez."},
+    "telegram": {"label": "Telegram (avisos y órdenes desde el celular)", "base_url": "https://api.telegram.org", "needs_secret": True, "local": False,
+                 "capabilities": ["notificacion"], "optional": [], "help": "Bot propio creado con @BotFather. La prueba envía un mensaje real a tu chat."},
+    "whatsapp": {"label": "WhatsApp Business (Cloud API de Meta)", "base_url": "https://graph.facebook.com/v21.0", "needs_secret": True, "local": False,
+                 "capabilities": ["notificacion"], "optional": [],
+                 "help": "Solo avisos salientes. Meta solo entrega texto libre si escribiste al número en las últimas 24 h; fuera de esa ventana exige plantillas."},
+    "ntfy": {"label": "ntfy (notificaciones push al celular)", "base_url": "https://ntfy.sh", "needs_secret": False, "local": False,
+             "capabilities": ["notificacion"], "optional": [], "help": "Instala la app ntfy y suscríbete a tu tema. En ntfy.sh público, cualquiera que conozca el tema puede leerlo: usa un nombre largo y aleatorio."},
     "webhook": {"label": "Webhook de exportación (CRM u otro sistema)", "base_url": "", "needs_secret": False, "local": False,
                 "capabilities": ["exportacion"], "optional": [],
                 "help": "Destino externo para exportar entregables aprobados. Cada envío requiere aprobación específica."},
@@ -242,6 +250,10 @@ def test(conn_id: str) -> dict:
             if not voice.local_whisper_available():
                 raise ProviderError("not_supported", "El paquete faster-whisper no está instalado en este entorno.")
             detail = "faster-whisper instalado. El modelo se descargará al primer uso."
+        elif p in NOTIFY_PROVIDERS:
+            from .providers import notify as channels
+            channels.send(conn, secret, "Prueba de conexión: este canal recibirá los avisos que elijas.")
+            detail = "Mensaje de prueba enviado. Comprueba que llegó a tu celular."
         elif p == "webhook":
             security.check_provider_url(conn["base_url"])
             detail = "URL válida. No se envía ninguna petición de prueba: los envíos requieren aprobación."

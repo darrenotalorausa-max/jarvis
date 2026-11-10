@@ -74,8 +74,20 @@ def chat(conn: dict, secret: str | None, system: str, user: str, *, json_mode: b
                 gen["responseMimeType"] = "application/json"
             body = {"contents": [{"role": "user", "parts": parts}], "generationConfig": gen,
                     "systemInstruction": {"parts": [{"text": system}]}}
-            resp = base.send(cli, "POST", f"{url}/models/{model}:generateContent", what, json=body,
-                             headers={"x-goog-api-key": secret or ""})
+            try:
+                resp = base.send(cli, "POST", f"{url}/models/{model}:generateContent", what, json=body,
+                                 headers={"x-goog-api-key": secret or ""})
+            except ProviderError as exc:
+                # Algunos modelos servidos por esta API (p. ej. Gemma 3) rechazan la instrucción de sistema o el modo JSON.
+                # Un único reintento compatible: la instrucción pasa al mensaje y el JSON se pide solo por texto.
+                if exc.http_status == 400 and ("not enabled" in exc.message.lower() or "not supported" in exc.message.lower()):
+                    gen.pop("responseMimeType", None)
+                    parts[0] = {"text": f"{system}\n\n{user}"}
+                    body.pop("systemInstruction", None)
+                    resp = base.send(cli, "POST", f"{url}/models/{model}:generateContent", what, json=body,
+                                     headers={"x-goog-api-key": secret or ""})
+                else:
+                    raise
             data = base.json_body(resp, what)
             cands = data.get("candidates") or []
             if not cands:

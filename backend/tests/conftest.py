@@ -38,12 +38,15 @@ class Fake:
         self.llm = lambda system, user: "{}"
         self.status = {}         # host -> código forzado
         self.raise_timeout = set()
+        self.custom = {}         # host -> función(req) -> httpx.Response
 
     def __call__(self, req: httpx.Request) -> httpx.Response:
         self.calls.append(req)
         host, path = req.url.host, req.url.path
         if host in self.raise_timeout:
             raise httpx.ReadTimeout("simulado", request=req)
+        if host in self.custom:
+            return self.custom[host](req)
         if host in self.status:
             return httpx.Response(self.status[host], json={"error": {"message": "simulado"}}, headers={"retry-after": "30"})
         if host == "api.tavily.com":

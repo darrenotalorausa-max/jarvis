@@ -141,6 +141,13 @@ def execute(job: dict) -> str:
             jobs.finish(job["id"], "failed", error=redact(f"Error inesperado: {type(exc).__name__}: {exc}")[:500], usage=ctx.router.summary())
     finally:
         stop.set()
+    try:
+        from . import notify
+        final = jobs.get(job["id"])
+        if final and final["status"] != "pending":
+            notify.job_event(final)
+    except Exception:
+        log.warning("No se pudo enviar el aviso del trabajo %s", job["id"])
     return status
 
 
@@ -163,6 +170,7 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
     jobs.recover_stale(0 if os.environ.get("JARVIS_RECOVER_ALL") else jobs.STALE_SECONDS)
     last_recover = time.monotonic()
     last_beat = 0.0
+    last_poll = 0.0
     log.info("Worker %s iniciado (concurrencia %d)", worker_id, max_concurrent)
     while not stop.is_set():
         for jid in [j for j, (th, _) in running.items() if not th.is_alive()]:
@@ -170,6 +178,13 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
         if time.monotonic() - last_recover > 30:
             jobs.recover_stale()
             last_recover = time.monotonic()
+        if time.monotonic() - last_poll > 4:
+            last_poll = time.monotonic()
+            try:
+                from . import notify
+                notify.poll_commands()
+            except Exception:
+                log.warning("Fallo al leer órdenes remotas")
         if time.monotonic() - last_beat > 5:
             db.set_setting("worker_heartbeat", time.time())
             last_beat = time.monotonic()

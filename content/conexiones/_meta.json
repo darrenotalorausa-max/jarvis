@@ -1,0 +1,17 @@
+{
+  "titulo": "Conectar Jarvis",
+  "grupo": "Guías",
+  "posicion": 1,
+  "descripcion": "Cómo conseguir cada clave y conectarla, paso a paso.",
+  "orden": [
+    "IA gratis en la nube con Gemini y Gemma.md",
+    "IA local con Ollama.md",
+    "Groq (texto y transcripción).md",
+    "Búsqueda web (Tavily o Brave).md",
+    "Avisos y órdenes por Telegram.md",
+    "Avisos por WhatsApp.md",
+    "Notificaciones push con ntfy.md",
+    "Usar Jarvis desde el celular.md",
+    "Voz con ElevenLabs.md"
+  ]
+}

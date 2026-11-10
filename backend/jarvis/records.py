@@ -128,6 +128,30 @@ KINDS: dict[str, dict] = {
     "reflection": {"label": "Reflexión", "plural": "Reflexión y vida espiritual", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
         F("date", "Fecha", "date"), F("practice", "Práctica", "select", options=["reflexion", "oracion", "meditacion", "gratitud", "otra"]),
         F("minutes", "Minutos", "number"), F("body", "Texto", "textarea")]},
+    # --- Centro de negocios (motor de misiones)
+    "mission": {"label": "Misión", "plural": "Misiones", "module": "negocios",
+                "statuses": ["pendiente", "preparada", "en_cola", "ejecutando", "esperando_integracion", "esperando_datos", "esperando_aprobacion",
+                             "verificacion", "completada_verificada", "fallida", "cancelada", "no_aplica"], "fields": [
+        F("business", "Negocio", "select", options=["ecom", "b2b", "clip", "brands", "otro"], required=True),
+        F("section", "Sección", "select", options=["A_base_estable", "B_por_lanzamiento", "C_ciclo_diario", "D_revisiones", "E_etapas_de_crecimiento", "F_automatizaciones"], required=True),
+        F("instance", "Instancia (lanzamiento, ciclo o revisión)"), F("priority", "Prioridad", "select", options=["P1", "P2", "P3"]),
+        F("action", "Acción", "textarea"), F("how", "Cómo", "textarea"), F("deliverable", "Entregable", "textarea"),
+        F("closure", "Criterio de cierre", "textarea"), F("ai_part", "Qué hace la IA", "textarea"), F("human_part", "Intervención humana", "textarea"),
+        F("trigger", "Activación"), F("dependency", "Dependencia (descriptiva, sin validar)"), F("owner", "Responsable"),
+        F("level", "Nivel de automatización", "select", options=["automatica", "semiautomatica", "humana", "bloqueada_por_integracion"]),
+        F("evidence", "Evidencia verificable (enlace, ID de entregable o archivo)", "textarea"), F("result", "Resultado real del negocio", "textarea"),
+        F("next_step", "Próximo paso"), F("source_ref", "Referencia a la fuente original")]},
+    "decision": {"label": "Decisión", "plural": "Decisiones", "module": "negocios", "statuses": ["abierta", "revisada"], "fields": [
+        F("business", "Negocio", "select", options=["ecom", "b2b", "clip", "brands", "otro"]),
+        F("verdict", "Decisión", "select", options=["continuar", "corregir", "detener", "ampliar"], required=True),
+        F("hypothesis", "Hipótesis", "textarea", required=True), F("limit", "Límite (dinero, tiempo o muestras)"),
+        F("window", "Ventana de evaluación"), F("evidence", "Evidencia y fuente del dato", "textarea"), F("review_date", "Fecha de revisión", "date")]},
+    # --- Segundo cerebro
+    "note": {"label": "Nota", "plural": "Notas", "module": "personal", "statuses": ["vigente"], "private": True, "fields": [
+        F("body", "Contenido", "textarea"), F("tags", "Etiquetas", "tags"), F("source", "Fuente o enlace"), F("area", "Área", "select", options=["mente", "cuerpo", "espiritu", "economia", "negocio", "otra"])]},
+    "skill": {"label": "Habilidad", "plural": "Habilidades por aprender", "module": "personal", "statuses": ["pendiente", "en_curso", "practicando", "dominada"], "fields": [
+        F("why", "Para qué la quiero", "textarea"), F("plan", "Plan de práctica", "textarea"), F("resources", "Recursos", "textarea"),
+        F("weekly_hours", "Horas por semana", "number"), F("next_review", "Próximo repaso", "date"), F("guide", "Guía de la biblioteca")]},
     # --- Editor audiovisual (estructura propia validada en handlers.video)
     "video_project": {"label": "Proyecto de video", "plural": "Proyectos de video", "module": "video", "statuses": ["en_edicion", "exportado"], "free_data": True, "fields": [
         F("mode", "Modo", "select", options=["clipping", "publicidad", "marca_personal", "formacion"])]},
@@ -218,6 +242,13 @@ def list_records(space_id: str, kind: str, *, archived: bool = False, project_id
     return [_row(r) for r in db.query(sql + " ORDER BY created_at DESC, rowid DESC LIMIT ?", (*params, limit))]
 
 
+def _check_rules(kind: str, status: str | None, data: dict) -> None:
+    """Reglas de negocio por tipo. Una misión no puede darse por completada y verificada sin criterio de cierre y evidencia."""
+    if kind == "mission" and status == "completada_verificada":
+        if not (data.get("closure") or "").strip() or not (data.get("evidence") or "").strip():
+            raise RecordError("Para marcar una misión como «completada verificada» hacen falta su criterio de cierre y una evidencia verificable.")
+
+
 def _check_refs(space_id: str, project_id, brand_id, data: dict, kind: str) -> None:
     refs = [(project_id, "project"), (brand_id, "brand")]
     refs += [(data.get(f["name"]), f["ref"]) for f in KINDS[kind]["fields"] if f["type"] == "ref"]
@@ -240,6 +271,7 @@ def create(space_id: str, kind: str, title: str, data: dict | None = None, *, st
     if status not in spec["statuses"]:
         raise RecordError("Estado no permitido.")
     _check_refs(space_id, project_id, brand_id, clean, kind)
+    _check_rules(kind, status, clean)
     rid = new_id(kind[:3])
     db.execute("INSERT INTO records(id,space_id,kind,title,status,project_id,brand_id,data,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)",
                (rid, space_id, kind, title.strip()[:300], status, project_id or None, brand_id or None, dumps(clean), now_iso(), now_iso()))
@@ -275,6 +307,7 @@ def update(record_id: str, space_id: str, patch: dict) -> dict:
         sets.append("archived=?")
         params.append(int(bool(patch["archived"])))
     _check_refs(space_id, patch.get("project_id", rec["project_id"]), patch.get("brand_id", rec["brand_id"]), data, rec["kind"])
+    _check_rules(rec["kind"], patch.get("status", rec["status"]), data)
     if sets:
         db.execute(f"UPDATE records SET {','.join(sets)}, updated_at=? WHERE id=?", (*params, now_iso(), record_id))
     return get(record_id)

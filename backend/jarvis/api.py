@@ -12,7 +12,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, Up
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response, StreamingResponse
 
-from . import assistant, backup, config, connections, db, economy, files, jobs, records, review, router, secrets_store
+from . import access, assistant, backup, business, config, connections, db, economy, files, jobs, library, notify, records, review, router, secrets_store
 from .handlers import clipping as clipping_h, opportunities as opp_h, video as video_h
 from .jobs import JobError
 from .providers.base import ProviderError
@@ -30,33 +30,49 @@ JOB_TYPES = {
     "video_render": "Exportación de video", "shopify_package": "Paquete Shopify", "clipping_import_url": "Importar campaña de clipping",
     "external_export": "Envío externo",
 }
-SETTINGS_KEYS = {"user_name", "allow_paid", "onboarded", "voice", "min_cpm", "worker_concurrency", "business_types"}
+SETTINGS_KEYS = {"user_name", "allow_paid", "onboarded", "voice", "min_cpm", "worker_concurrency", "business_types", "agents_paused"}
 
 
 def _allowed_hosts() -> set[str]:
     p = config.port()
-    hosts = {f"127.0.0.1:{p}", f"localhost:{p}", "testserver"}
-    if config.host() not in ("127.0.0.1", "localhost"):
-        hosts.add(f"{config.host()}:{p}")
-    return hosts
+    return {f"127.0.0.1:{p}", f"localhost:{p}", "testserver"}
 
 
 @app.middleware("http")
 async def guard(request: Request, call_next):
-    # Defensa frente a DNS rebinding y peticiones de otros orígenes: el navegador solo puede hablar con Jarvis desde su propia página.
+    """Desde este equipo: validación de Host y Origin (DNS rebinding y peticiones de otras webs).
+    Desde otro dispositivo (solo si se activó el acceso en red): además, sesión iniciada con el código de acceso."""
     host = request.headers.get("host", "")
-    if host not in _allowed_hosts():
+    client = request.client.host if request.client else "127.0.0.1"
+    remote = not access.is_loopback(client)
+    path = request.url.path
+    if remote:
+        if not access.enabled():
+            return JSONResponse({"detail": "El acceso desde otros dispositivos no está activado."}, status_code=403)
+        if path.startswith("/api/") and path not in ("/api/login", "/api/health") and not access.valid_cookie(request.cookies.get(access.COOKIE)):
+            return JSONResponse({"detail": "Introduce el código de acceso.", "kind": "login"}, status_code=401)
+    elif host not in _allowed_hosts():
         return JSONResponse({"detail": "Host no permitido."}, status_code=403)
     origin = request.headers.get("origin")
     if origin and request.method not in ("GET", "HEAD", "OPTIONS"):
-        if origin.split("://", 1)[-1] not in _allowed_hosts():
+        ok = origin.split("://", 1)[-1] == host if remote else origin.split("://", 1)[-1] in _allowed_hosts()
+        if not ok:
             return JSONResponse({"detail": "Origen no permitido."}, status_code=403)
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
-    if request.url.path.startswith("/api/"):
+    if path.startswith("/api/"):
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+@app.post("/api/login")
+def login(request: Request, body: dict = Body(...)):
+    client = request.client.host if request.client else "127.0.0.1"
+    token = access.login(client, str(body.get("code") or ""))
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(access.COOKIE, token, httponly=True, samesite="strict", max_age=30 * 24 * 3600)
+    return resp
 
 
 @app.exception_handler(KeyError)
@@ -294,6 +310,7 @@ def diagnostics():
     return {"version": config.APP_VERSION, "python": sys.version.split()[0], "sistema": f"{platform.system()} {platform.release()}",
             "esquema": db.schema_version(), "ffmpeg": video_h.ffmpeg_status(), "worker_activo": _worker_alive(), "secretos": secrets_store.backend(),
             "escucha": f"{config.host()}:{config.port()}", "solo_loopback": config.host() in ("127.0.0.1", "localhost"),
+            "acceso_red": {"activo": access.enabled(), "direcciones": access.lan_urls() if access.enabled() else []},
             "directorios": {"datos": str(config.data_dir()), "exportaciones": str(config.exports_dir()), "logs": str(config.logs_dir())},
             "conteos": counts, "trabajos_por_estado": by_status,
             "auditoria": db.query("SELECT ts, actor, action, target FROM audit ORDER BY id DESC LIMIT 30")}
@@ -597,6 +614,42 @@ def video_manifest(project_id: str, space: str):
     data = video_h.validate_project(rec["data"], space)
     outs = [f for f in (files.get(i, space) for i in rec["data"].get("outputs") or []) if f]
     return JSONResponse(video_h.build_manifest(rec, data, space, outs), headers={"Content-Disposition": 'attachment; filename="manifiesto.json"'})
+
+
+# ---------- Biblioteca de conocimiento y Centro de negocios
+
+@app.get("/api/library")
+def library_tree():
+    return library.tree()
+
+
+@app.get("/api/library/doc")
+def library_doc(path: str):
+    return library.doc(path)
+
+
+@app.get("/api/library/file")
+def library_file(path: str):
+    p = library.file_path(path)
+    return FileResponse(p, media_type="application/pdf", filename=p.name)
+
+
+@app.get("/api/library/search")
+def library_search(q: str):
+    return library.search(q)
+
+
+@app.get("/api/business/summary")
+def business_summary(space: str):
+    _space(space)
+    return business.summary(space)
+
+
+@app.post("/api/notify/test")
+def notify_test(body: dict = Body(default={})):
+    """Envía un aviso de prueba a todos los canales habilitados (acción explícita del usuario)."""
+    sent = notify.send("Aviso de prueba: Jarvis puede escribirte a este canal.", space_id=body.get("space"))
+    return {"enviados": sent}
 
 
 # ---------- Clipping y economía
