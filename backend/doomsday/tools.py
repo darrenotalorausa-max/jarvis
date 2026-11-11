@@ -144,7 +144,7 @@ def utilidad_cod(space_id, inp):
     cerrados = tot[1] + tot[2]
     alertas = [f"«{r[0]}» pierde {abs(r[8]):,.0f} en el periodo con {r[2]} entregados: revisar antes de seguir pautando." for r in u["productos"] if r[8] < 0 and (r[2] + r[3]) >= 5]
     if u["sin_costo"]:
-        alertas.append(f"{u['sin_costo']} pedidos entregados no tienen costo de producto: su utilidad está sobrestimada.")
+        alertas.append(f"{u['sin_costo']} {'pedido entregado no tiene' if u['sin_costo'] == 1 else 'pedidos entregados no tienen'} costo de producto: la utilidad está sobrestimada.")
     abiertos = sum(1 for o in u["orders"] if o["status"] in ("en_transito", "confirmado", "pendiente"))
     if abiertos:
         alertas.append(f"{abiertos} pedidos siguen abiertos (sin entrega ni devolución): la utilidad del periodo aún no es definitiva.")

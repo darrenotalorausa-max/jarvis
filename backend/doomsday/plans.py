@@ -145,7 +145,7 @@ def plans(module: str = ""):
             continue
         conn = connections.get(job["params"]["connection_id"])
         root = (conn or {}).get("base_url", "").rstrip("/")
-        out.append({"id": job["id"], "titulo": job["title"], "estado": job["status"], "programado": job.get("resume_at"), "conexion": (conn or {}).get("name"), "espacio": job["space_id"],
+        out.append({"id": job["id"], "modulo": job["params"].get("module"), "titulo": job["title"], "estado": job["status"], "programado": job.get("resume_at"), "conexion": (conn or {}).get("name"), "espacio": job["space_id"],
                     "pasos": [{"paso": s["label"], "metodo": s["method"], "url": root + s["path"], "cuerpo": s["body"]} for s in job["params"]["steps"]], "variables": job["params"]["variables"]})
     return out
 

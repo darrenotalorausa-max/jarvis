@@ -78,7 +78,11 @@ def overview():
         e = ent.get(mid) or {}
         mods[mid] = {"registros": sum(rec.get((spaces[m["capa"]], k), 0) for k in m["kinds"]), "entregables": e.get("total", 0), "por_revisar": e.get("por_revisar") or 0, "ultimo": e.get("ultimo")}
     estado = {r["status"]: r["c"] for r in db.query("SELECT status, COUNT(*) c FROM jobs WHERE type IN ('dd_run','dd_clip','dd_plan','media_generate','connector_action') GROUP BY status")}
-    return {"modulos": mods, "trabajos": estado, "activos": sum(1 for v in mods.values() if v["registros"] or v["entregables"]),
+    actividad: dict[str, int] = {}
+    for tabla, cond in (("jobs", "type IN ('dd_run','dd_clip','dd_plan')"), ("deliverables", "kind='dd'")):
+        for r in db.query(f"SELECT substr(created_at,1,10) d, COUNT(*) c FROM {tabla} WHERE {cond} GROUP BY d ORDER BY d DESC LIMIT 90"):
+            actividad[r["d"]] = actividad.get(r["d"], 0) + r["c"]
+    return {"modulos": mods, "trabajos": estado, "actividad": actividad, "activos": sum(1 for v in mods.values() if v["registros"] or v["entregables"]),
             "por_revisar": sum(v["por_revisar"] for v in mods.values()), "skills_propias": sum(1 for s in skills.listing() if s["origen"] == "propia")}
 
 

@@ -20,11 +20,15 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   const post = (url, body) => page.evaluate(async ([u, b]) => { const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }); return r.json(); }, [url, body]);
 
   await page.goto(BASE);
-  await page.getByRole("heading", { name: "Laboratorio de software" }).waitFor();
+  await page.getByRole("heading", { name: "DOOMSDAY", level: 1 }).waitFor();
   const cat = await page.evaluate(() => fetch("/api/dd/catalog").then((r) => r.json()));
   if (cat.modulos.length !== 100) throw new Error("El catálogo no tiene 100 módulos");
   if ((await page.locator(".modrow__rank").count()) !== 20) throw new Error("El tablero no muestra los 20 mejores");
-  ok("Tablero con 100 módulos, 20 mejores y cuatro capas");
+  if ((await page.locator(".dial__seg").count()) !== 100) throw new Error("El dial no tiene 100 segmentos");
+  await page.locator(".dial a").first().focus();
+  await page.keyboard.press("ArrowRight");
+  await page.locator(".dial__k").waitFor();
+  ok("Tablero con 100 módulos, 20 mejores, cuatro capas y dial navegable con el teclado");
   await shot("tablero");
 
   for (const k of Object.keys(cat.categorias)) {
@@ -63,7 +67,7 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   await page.goto(`${BASE}/#/m/X07`);
   const panel = page.locator(".panel", { hasText: "Revisión de cumplimiento de anuncios" });
   await panel.locator("textarea").fill("Esta crema cura el acné para siempre. Resultados garantizados. ¿Sufres de sobrepeso?");
-  await panel.getByRole("button", { name: "Calcular" }).click();
+  await panel.getByRole("button", { name: "Ejecutar" }).click();
   await panel.locator(".stat", { hasText: "Riesgo" }).getByText("alto").waitFor();
   ok("X07 detecta promesas prohibidas y marca riesgo alto");
   await shot("x07-cumplimiento");
@@ -132,8 +136,41 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   await portal.getByRole("button", { name: "Crear espacio del cliente" }).click();
   await portal.getByRole("cell", { name: "Acme", exact: true }).waitFor();
   await portal.locator("tr", { hasText: "Acme" }).getByRole("button", { name: "Trabajar en este espacio" }).click();
-  await page.waitForFunction((base) => { const el = document.querySelector(".top select"); return !!el && el.value !== base && el.selectedOptions[0]?.textContent === "Acme"; }, cat.espacios.clientes);
+  await page.waitForFunction((base) => { const el = document.querySelector(".dtop select"); return !!el && el.value !== base && el.selectedOptions[0]?.textContent === "Acme"; }, cat.espacios.clientes);
   ok("V06 crea el espacio de un cliente y trabaja dentro de él");
+
+  // Funcionalidad propia sin IA: propuesta por plantilla guardada como entregable, lista de pasos y secciones del tema.
+  const clientes = cat.espacios.clientes;
+  await post("/api/records", { space: clientes, kind: "dd_plan", title: "Growth Sprint", data: { alcance: "Auditoría\n20 creativos al mes", exclusiones: "Pauta", precio: 1500 } });
+  await page.goto(`${BASE}/#/m/V02`);
+  await page.locator(".dnav button", { hasText: "Clientes B2B" }).click();  // vuelve del espacio de Acme al general de clientes
+  await page.waitForFunction((base) => document.querySelector(".dtop select")?.value === base, cat.espacios.clientes);
+  const prop = page.locator(".panel", { hasText: "Propuesta desde tus planes y casos" });
+  await prop.locator("input").nth(0).fill("Acme");
+  await prop.locator("input").nth(1).fill("Growth Sprint");
+  await prop.getByRole("button", { name: "Ejecutar" }).click();
+  await prop.getByText("20 creativos al mes").waitFor();
+  await prop.getByRole("button", { name: "Guardar como entregable" }).click();
+  await prop.getByRole("button", { name: "Abrir entregable" }).click();
+  await page.getByText("V02 · Propuesta para Acme").first().waitFor();
+  ok("V02 arma la propuesta sin IA y la guarda como entregable revisable");
+  await page.goto(`${BASE}/#/m/G03`);
+  const pasos = page.locator(".panel", { hasText: "Listas de pasos: crear desde plantilla y ver avance" });
+  await pasos.locator("select").selectOption("tienda_shopify_cod");
+  await pasos.locator("input").first().fill("Tienda nueva");
+  await pasos.getByRole("button", { name: /Ejecutar|Recalcular/ }).click();
+  await pasos.getByRole("cell", { name: "Tienda nueva" }).waitFor();
+  ok("G03 crea la lista de 20 pasos de una tienda desde su plantilla");
+  await page.goto(`${BASE}/#/m/S01`);
+  const tema = page.locator(".panel", { hasText: "Secciones del tema Shopify listas para instalar" });
+  await tema.getByRole("cell", { name: "dd-packs" }).waitFor();
+  await tema.getByRole("button", { name: "Descargar .zip" }).click();
+  await tema.getByRole("link", { name: /Descargar doomsday-secciones-tema/ }).waitFor();
+  for (const [id, title] of [["C05", "Publicar o programar en redes"], ["M02", "Lanzar en Meta"], ["M08", "Enviar compras entregadas a Meta"], ["R08", "Aplicar al servidor de Discord"], ["P03", "Traer correos de Gmail"], ["H02", "Traer el sueño de Oura"]]) {
+    await page.goto(`${BASE}/#/m/${id}`);
+    await page.locator(".panel__title", { hasText: title }).waitFor();
+  }
+  ok("S01 entrega las secciones Liquid; C05, M02, M08, R08, P03 y H02 muestran su integración");
 
   // Teleprompter (C06) y vistas del motor.
   await page.goto(`${BASE}/#/m/C06`);
@@ -147,7 +184,8 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   }
   ok("Revisión, Conexiones, Apps conectadas y Sistema abren dentro de Doomsday");
   await page.goto(BASE);
-  await page.locator(".stat", { hasText: "Módulos con actividad" }).getByText(/[1-9]\d* de 100/).waitFor();
+  await page.locator(".dial__seg--on").first().waitFor();
+  if (await page.locator(".dial__n").textContent() === "0") throw new Error("El dial no refleja la actividad");
   await shot("tablero-con-actividad");
 
   await browser.close();

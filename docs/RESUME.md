@@ -14,10 +14,11 @@ Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el c�
 Construido y probado en Linux; ver `docs/DOOMSDAY.md` y la sección Doomsday de `IMPLEMENTATION_STATUS.md`. Para retomar, en orden de valor:
 1. Conectar una IA real en Doomsday (Conexiones) y evaluar las skills del top 5 (G04, M06, G02, M01, V02) con casos reales; ajustar `backend/doomsday/skills/*.md`.
 2. Importar las skills propias del usuario (Dawn, tema, guiones) desde Skills → «Importar mis skills».
-3. Validar con cuentas reales, una por una, las plantillas de `backend/doomsday/integrations.py`: Meta Ads (gasto y pausa), TikTok Ads (ruta y campos del informe, pausa), WhatsApp (envío), Shopify (`dd_producto_borrador`). Los arreglos quedan acotados a `PRESETS`/`SHOPIFY_EXTRA` y a `sync_ads`.
-4. Pedir al usuario una exportación real de Dropi y ajustar los alias de columnas (`COLS`) y los estados (`_estado`).
-5. Pendiente de construir: cobros y firma (V08), secciones del tema en Shopify (G04), paginación de informes de pauta, Higgsfield si publica API.
-6. Validar `START_DOOMSDAY.cmd` en Windows y el micrófono de P04.
+3. Validar con cuentas reales, una por una, las plantillas de `integrations.py` y `plans.py` (Meta Ads, TikTok Ads, WhatsApp, Shopify, Instagram/Facebook, LinkedIn, X, Discord, Gmail, Oura). Los arreglos quedan acotados a `PRESETS` y a los constructores de pasos.
+4. Instalar las 6 secciones de `content.SECTIONS` en un duplicado de un tema real y corregir lo que falle en el editor.
+5. Pedir una exportación real de Dropi y ajustar `COLS` y `_estado` en `integrations.py`.
+6. Pendiente de construir: subida de archivos binarios en el conector (abre TikTok, YouTube y anuncios de video), pasarela de cobro, webhook público opcional para WhatsApp.
+7. Validar `START_DOOMSDAY.cmd` en Windows y el micrófono de P04.
 
 ## Para retomar (en orden de valor)
 

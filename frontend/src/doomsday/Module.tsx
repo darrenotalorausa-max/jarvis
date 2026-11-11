@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { api, fmtDate, fmtNum, type Deliverable, type Rec } from "../api";
+import { api, fmtDate, fmtNum, url, type Deliverable, type Rec } from "../api";
 import { useApp, useData } from "../store";
 import { Badge, Btn, Check, Empty, ErrorBox, FieldRow, Panel, Select, Skeleton, Stat, Tabs, Text, useConfirm } from "../components/ui";
 import { Needs, UploadButton, useFiles, useRecords } from "../components/shared";
 import { RecordsPanel } from "../components/RecordsPanel";
-import { useCat, type Action, type FieldSpec, type Mod, type Tool } from "./App";
+import { HealthImport, Scripture } from "../components/LifeTools";
+import { lc, useCat, type Action, type FieldSpec, type Mod, type Tool } from "./App";
 
-type ToolResult = { titulo: string; resumen: string; metricas: { label: string; valor: any; tono?: "ok" | "bad" | "amber" | null }[]; tablas: { titulo: string; columnas: string[]; filas: any[][] }[]; alertas: string[]; texto?: string; mapa?: Record<string, string> };
+type ToolResult = { secciones?: { titulo: string; contenido: string }[]; archivo?: { id: string; name: string }; deliverable_id?: string; titulo: string; resumen: string; metricas: { label: string; valor: any; tono?: "ok" | "bad" | "amber" | null }[]; tablas: { titulo: string; columnas: string[]; filas: any[][] }[]; alertas: string[]; texto?: string; mapa?: Record<string, string> };
 type Tab = "trabajar" | "datos" | "entregables" | "skill";
 
 const CONN_LABEL: Record<string, string> = { shopify: "Shopify (Admin API)", meta: "Meta Ads", tiktok: "TikTok Ads", gmail: "Gmail", whatsapp: "WhatsApp Business (Cloud API)", dropi: "la exportación CSV de tu operador logístico (Dropi u otro)", video: "una conexión de IA que genere video (OpenAI, Gemini o fal.ai, en Conexiones de IA)" };
@@ -23,7 +24,7 @@ export function ModuleView({ mod }: { mod: Mod }) {
   const tabs: [Tab, string][] = [["trabajar", "Trabajar"], ...(mod.kinds.length ? [["datos", "Datos"] as [Tab, string]] : []), ["entregables", "Entregables"], ["skill", "Skill"]];
   return (
     <div className="page">
-      <header className="mhead">
+      <header className="mhead" style={lc(mod.capa)}>
         <div className="mhead__title"><span className="mid">{mod.id}</span><h1 className="page__title">{mod.nombre}</h1></div>
         <p className="mhead__flow">{mod.problema} → <b>{mod.solucion}</b>.</p>
         <div className="chips">
@@ -52,28 +53,31 @@ function Work({ mod }: { mod: Mod }) {
   const [orden, ...acciones] = mod.acciones;
   return (
     <>
-      <Needs caps={["extraccion"]} />
+      {(tools.length > 0 || mod.widget || mod.kinds.includes("dd_habito")) && <h2 className="sechead">Herramientas propias <span>funcionan sin IA</span></h2>}
       {mod.conexiones.length > 0 && (
         <p className="note">Este módulo aprovecha: {mod.conexiones.map((c) => CONN_LABEL[c] || c).join(", ")}. Conéctalas en <button className="linkbtn" onClick={() => nav("apps")}>Apps conectadas</button>;
           sin ellas trabaja con los datos que registres o importes en «Datos». Leer no requiere aprobación; cualquier escritura sí.</p>
       )}
-      <Panel title="Orden libre" note={`La skill ${mod.id} aplica su método completo y usa los datos de este módulo. El resultado queda como borrador para tu revisión.`}>
+      {mod.widget && <Widget mod={mod} />}
+      {["C05", "M02", "M08", "R08", "S01"].includes(mod.id) && <PlanQueue mod={mod} />}
+      {mod.kinds.includes("dd_habito") && <Habits mod={mod} />}
+      {tools.map((t) => <ToolPanel key={t.id} mod={mod} tool={t} />)}
+      <h2 className="sechead">Órdenes con IA <span>la skill {mod.id} aplica su método completo</span></h2>
+      <Needs caps={["extraccion"]} />
+      <Panel title="Orden libre" note="Escribe poco: el resultado queda como borrador para tu revisión, con sus comprobaciones y supuestos.">
         <ActionForm mod={mod} act={orden} primary />
       </Panel>
-      {mod.widget && <Widget mod={mod} />}
-      {mod.kinds.includes("dd_habito") && <Habits mod={mod} />}
       {acciones.length > 0 && (
         <div className="actions">
           {acciones.map((a) => <Panel key={a.id} title={a.label}><p className="act__task">{a.tarea}</p><ActionForm mod={mod} act={a} /></Panel>)}
         </div>
       )}
-      {tools.map((t) => <ToolPanel key={t.id} mod={mod} tool={t} />)}
       <Activity mod={mod} />
     </>
   );
 }
 
-export function Input({ f, value, onChange }: { f: FieldSpec; value: any; onChange: (v: any) => void }) {
+function Input({ f, value, onChange }: { f: FieldSpec; value: any; onChange: (v: any) => void }) {
   if (f.type === "select") return <Select value={value ?? ""} onChange={onChange} options={(f.options || []).map((o) => [o, o.replace(/_/g, " ")])} empty="—" />;
   if (f.type === "bool") return <Check checked={!!value} onChange={onChange}>{f.label}</Check>;
   if (f.type === "textarea") return <Text area rows={4} value={value ?? ""} onChange={onChange} />;
@@ -119,17 +123,24 @@ function ToolPanel({ mod, tool }: { mod: Mod; tool: Tool }) {
   const [values, setValues] = useState<Record<string, any>>({});
   const [res, setRes] = useState<ToolResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const calc = async (silent = false) => {
+  const { nav, notify } = useApp();
+  const calc = async (silent = false, extra: Record<string, any> = {}) => {
     setBusy(true);
-    const p = api<ToolResult>(`/dd/tools/${tool.id}`, { body: { module: mod.id, inputs: values, space: space.id } });
+    const { guardar, ...more } = extra;
+    const p = api<ToolResult>(`/dd/tools/${tool.id}`, { body: { module: mod.id, inputs: { ...values, ...more }, space: space.id, guardar } });
     const r = silent ? await p.catch(() => undefined) : await run(p);
     setBusy(false);
-    if (r) setRes(r);
+    if (r) { setRes(r); if (r.deliverable_id) notify("Guardado como entregable. Ábrelo en Revisión para aprobarlo.", "ok"); }
   };
-  // Las herramientas que solo leen registros se calculan al abrir y cuando termina un trabajo. Las que escriben (salud_tienda, utm) solo a petición.
-  useEffect(() => { if (tool.auto && !["utm", "embudo", "churn"].includes(tool.id)) calc(true); }, [doneTick]);
+  // Las herramientas que solo leen registros se calculan al abrir y cuando termina un trabajo. Las que escriben o piden entradas, solo a petición.
+  useEffect(() => { if (tool.auto && !tool.escribe) calc(true); }, [doneTick]);
+  const guardable = !!res && !res.deliverable_id && (!!res.secciones?.length || res.tablas.some((t) => t.filas.length > 0));
   return (
-    <Panel title={tool.label} actions={<Btn small busy={busy} onClick={() => calc()}>{res ? "Recalcular" : "Calcular"}</Btn>} note="Cálculo determinista con tus registros. Sin IA y sin cifras de ejemplo.">
+    <Panel title={tool.label} note="Funciona sin IA: calcula con tus registros y con reglas fijas. Sin datos lo dice; no muestra cifras de ejemplo."
+      actions={<>{tool.id === "tema" && <Btn small onClick={() => calc(false, { _descargar: true })}>Descargar .zip</Btn>}
+        {guardable && <Btn small onClick={() => calc(false, { guardar: true })}>Guardar como entregable</Btn>}
+        {res?.deliverable_id && <Btn small kind="ghost" onClick={() => nav(`revision/${res.deliverable_id}`)}>Abrir entregable</Btn>}
+        <Btn small kind="primary" busy={busy} onClick={() => calc()}>{res ? "Recalcular" : "Ejecutar"}</Btn></>}>
       <Fields campos={tool.campos} values={values} set={(k, v) => setValues((s) => ({ ...s, [k]: v }))} />
       {res && <ToolView res={res} />}
     </Panel>
@@ -139,11 +150,14 @@ function ToolPanel({ mod, tool }: { mod: Mod; tool: Tool }) {
 const cellNum = (v: any) => (typeof v === "number" ? fmtNum(v) : v === null || v === undefined || v === "" ? "—" : String(v));
 
 export function ToolView({ res }: { res: ToolResult }) {
+  const { space } = useApp();
   return (
     <div className="tres">
       {res.resumen && <p className="small muted">{res.resumen}</p>}
       {res.metricas.length > 0 && <div className="stats">{res.metricas.map((m) => <Stat key={m.label} label={m.label} value={cellNum(m.valor)} tone={m.tono || undefined} />)}</div>}
+      {res.archivo && <p><a className="btn btn--primary" href={url(`/files/${res.archivo.id}/download`, { space: space.id })}>Descargar {res.archivo.name}</a></p>}
       {res.texto && <pre>{res.texto}</pre>}
+      {res.secciones && res.secciones.length > 0 && <div className="tres__doc">{res.secciones.map((s) => <div key={s.titulo}><h3>{s.titulo}</h3><p>{s.contenido}</p></div>)}</div>}
       {res.mapa && Object.keys(res.mapa).length > 0 && (
         <details><summary className="small muted">Mapa para restaurar ({Object.keys(res.mapa).length}); no se guarda</summary><pre>{Object.entries(res.mapa).map(([k, v]) => `${k} = ${v}`).join("\n")}</pre></details>
       )}
@@ -163,7 +177,7 @@ export function ToolView({ res }: { res: ToolResult }) {
 
 function Activity({ mod }: { mod: Mod }) {
   const { jobs, nav, run, refreshJobs } = useApp();
-  const list = jobs.filter((j) => ["dd_run", "dd_clip", "media_generate"].includes(j.type) && j.params?.module === mod.id).slice(0, 8);
+  const list = jobs.filter((j) => ["dd_run", "dd_clip", "dd_plan", "media_generate"].includes(j.type) && j.params?.module === mod.id).slice(0, 8);
   if (!list.length) return null;
   const act = async (id: string, what: "cancel" | "retry") => { await run(api(`/jobs/${id}/${what}`, { method: "POST" })); refreshJobs(); };
   return (
@@ -241,7 +255,15 @@ function Widget({ mod }: { mod: Mod }) {
   if (mod.widget === "sync") return <><ShopifySync /><AdsSync /><LogisticsImport /></>;
   if (mod.widget === "publicar") return <ShopifyDraft />;
   if (mod.widget === "pausa") return <><AdsSync /><AdsPause /></>;
-  if (mod.widget === "whatsapp") return <WhatsApp />;
+  if (mod.widget === "whatsapp") return <><GmailSync module="V05" /><WhatsApp /></>;
+  if (mod.widget === "gmail") return <GmailSync module="P03" />;
+  if (mod.widget === "redes") return <SocialPublish />;
+  if (mod.widget === "lanzar") return <AdsLaunch />;
+  if (mod.widget === "capi") return <CapiSend />;
+  if (mod.widget === "discord") return <Discord />;
+  if (mod.widget === "tema") return <ThemeUpload />;
+  if (mod.widget === "salud") return <><HealthImport />{mod.id === "H02" && <OuraSync />}</>;
+  if (mod.widget === "escritura") return <Scripture />;
   if (mod.widget === "media") return <CreativeMedia />;
   if (mod.widget === "clip") return <ClipCutter />;
   if (mod.widget === "voz") return <VoiceCapture />;
@@ -610,6 +632,185 @@ function Portal() {
           <tbody>{list.data.map((c) => <tr key={c.id}><td>{c.name}</td><td>{c.entregables}</td><td className="right"><Btn small onClick={async () => { await reload(); setSpace(c.id); }}>Trabajar en este espacio</Btn></td></tr>)}</tbody>
         </table></div>
       )}
+    </Panel>
+  );
+}
+
+// ---------- Planes de acciones externas: una sola aprobación, ligada al plan exacto
+
+function PlanQueue({ mod }: { mod: Mod }) {
+  const { run, refreshJobs, doneTick, jobs } = useApp();
+  const plans = useData<any[]>(() => api("/dd/plans", { query: { module: mod.id } }), [mod.id, doneTick, jobs.length]);
+  const [at, setAt] = useState<Record<string, string>>({});
+  const [confirm, dialog] = useConfirm();
+  if (!plans.data?.length) return null;
+  const approve = async (id: string, when?: string) => { if (await run(api(`/dd/plans/${id}/approve`, { body: when ? { at: when } : {} }), when ? "Aprobado y programado." : "Aprobado. Se ejecuta ahora.")) { plans.reload(); refreshJobs(); } };
+  const cancel = (id: string) => confirm("Se descartará este plan sin ejecutar nada.", async () => { await run(api(`/jobs/${id}/cancel`, { method: "POST" })); plans.reload(); refreshJobs(); }, true);
+  return (
+    <Panel title="Planes pendientes" note="Esto es exactamente lo que se enviará a la plataforma. Apruébalo para ejecutarlo ahora, o para una fecha y hora. La aprobación vale una sola vez y solo para estos pasos.">
+      {plans.data.map((p) => (
+        <div className="plan" key={p.id}>
+          <div className="jobrow__top"><span className="jobrow__title">{p.titulo}</span><Badge value={p.estado === "pending" ? "running" : "waiting_approval"} text={p.estado === "pending" ? `Programado · ${fmtDate(p.programado)}` : "Espera tu aprobación"} /></div>
+          <p className="small muted">Conexión: {p.conexion}. {p.pasos.length} {p.pasos.length === 1 ? "paso" : "pasos"}.</p>
+          <details><summary className="small">Ver cada paso</summary>
+            {p.pasos.map((s: any, i: number) => (
+              <div className="plan__step" key={i}><span className="mono">{s.metodo}</span><div><strong>{s.paso}</strong><br /><code>{s.url}</code>{s.cuerpo && <pre>{JSON.stringify(s.cuerpo, null, 1)}</pre>}</div></div>
+            ))}
+          </details>
+          {p.estado === "waiting_approval" && (
+            <div className="row">
+              <Btn small kind="primary" onClick={() => approve(p.id)}>Aprobar y ejecutar ahora</Btn>
+              <input className="input" style={{ width: "auto" }} type="datetime-local" aria-label="Fecha y hora de ejecución" value={at[p.id] || ""} onChange={(e) => setAt((s) => ({ ...s, [p.id]: e.target.value }))} />
+              <Btn small disabled={!at[p.id]} onClick={() => approve(p.id, at[p.id])}>Aprobar para esa hora</Btn>
+              <Btn small kind="ghost" onClick={() => cancel(p.id)}>Descartar</Btn>
+            </div>
+          )}
+        </div>
+      ))}
+      {dialog}
+    </Panel>
+  );
+}
+
+function usePlan(path: string) {
+  const { run, space, notify, refreshJobs } = useApp();
+  const [res, setRes] = useState<any>(null);
+  const send = async (body: Record<string, any>) => {
+    const r = await run(api<any>(path, { body: { ...body, space: space.id } }));
+    if (r) { setRes(r); if (r.job) notify("Plan preparado. Revísalo y apruébalo en «Planes pendientes».", "ok"); refreshJobs(); }
+  };
+  return [send, res] as const;
+}
+
+function SocialPublish() {
+  const piezas = useRecords("dd_pieza");
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({ red: "instagram" });
+  const [send] = usePlan("/dd/social/publish");
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const cuenta = { instagram: "ID de la cuenta profesional de Instagram", facebook: "ID de la página", linkedin: "URN del autor (urn:li:person:…)", x: "" }[v.red as string];
+  return (
+    <Panel title="Publicar o programar en redes" note="Instagram, Facebook, LinkedIn y X se publican por su API oficial; el archivo debe estar en una URL pública. TikTok y YouTube exigen subir el archivo y no se publican desde aquí. Al publicar, la pieza pasa a «publicado».">
+      <AppPicker value={conn} onChange={setConn} what="la red (plantillas «Instagram y página de Facebook», «LinkedIn» o «X»)">
+        <FieldRow label="Red"><Select value={v.red} onChange={set("red")} options={[["instagram", "Instagram"], ["facebook", "Página de Facebook"], ["linkedin", "LinkedIn"], ["x", "X"]]} /></FieldRow>
+        {cuenta && <FieldRow label={cuenta}><Text value={v.cuenta} onChange={set("cuenta")} /></FieldRow>}
+        <FieldRow label="Pieza (opcional)"><Select value={v.record_id ?? ""} onChange={(id) => setV((s) => ({ ...s, record_id: id, texto: piezas.data?.find((p) => p.id === id)?.data.texto || s.texto }))}
+          options={(piezas.data || []).filter((p) => p.status !== "publicado").map((p) => [p.id, p.title])} empty="Escribir el texto a mano" /></FieldRow>
+        <FieldRow label="Imagen o video (URL https)"><Text type="url" value={v.media_url} onChange={set("media_url")} placeholder="https://" /></FieldRow>
+        <FieldRow label="Texto" wide><Text area rows={4} value={v.texto} onChange={set("texto")} /></FieldRow>
+      </AppPicker>
+      <div className="row row--end"><Btn kind="primary" disabled={!conn || !v.texto} onClick={() => send({ ...v, connection_id: conn })}>Preparar publicación</Btn></div>
+    </Panel>
+  );
+}
+
+function AdsLaunch() {
+  const crea = useRecords("dd_creativo");
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({ pais: "CO" });
+  const [sel, setSel] = useState<string[]>([]);
+  const [send] = usePlan("/dd/ads/launch");
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const ok = (crea.data || []).filter((c) => c.status === "aprobado");
+  return (
+    <Panel title="Lanzar en Meta (todo se crea en pausa)" note="Crea la campaña, el conjunto y un anuncio por creativo aprobado, todos en pausa: nada gasta hasta que los actives en el Administrador de anuncios. Revisa antes el cumplimiento de cada creativo. Solo anuncios de imagen por URL; los de video se suben en la plataforma. TikTok no se lanza desde aquí.">
+      <AppPicker value={conn} onChange={setConn} what="Meta Ads">
+        <FieldRow label="Cuenta publicitaria"><Text value={v.cuenta} onChange={set("cuenta")} placeholder="act_123456789" /></FieldRow>
+        <FieldRow label="ID de la página"><Text value={v.pagina_id} onChange={set("pagina_id")} /></FieldRow>
+        <FieldRow label="ID del píxel"><Text value={v.pixel_id} onChange={set("pixel_id")} /></FieldRow>
+        <FieldRow label="URL de destino"><Text type="url" value={v.destino} onChange={set("destino")} placeholder="https://" /></FieldRow>
+        <FieldRow label="Presupuesto diario"><Text type="number" value={v.presupuesto_diario} onChange={set("presupuesto_diario")} /></FieldRow>
+        <FieldRow label="País (código de dos letras)"><Text value={v.pais} onChange={set("pais")} /></FieldRow>
+        <FieldRow label=""><Check checked={!!v.moneda_sin_centavos} onChange={set("moneda_sin_centavos")}>La moneda de la cuenta no usa centavos (COP, CLP…)</Check></FieldRow>
+      </AppPicker>
+      {ok.length ? (
+        <div className="stack" style={{ marginTop: "var(--i4)" }}>{ok.slice(0, 30).map((c) => (
+          <Check key={c.id} checked={sel.includes(c.id)} onChange={(on) => setSel((s) => (on ? [...s, c.id] : s.filter((x) => x !== c.id)))}>
+            <span className="mono">{c.title}</span> · {c.data.hook || "sin hook"} {!c.data.imagen_url && <span className="amber">(falta la URL de la imagen)</span>}</Check>
+        ))}</div>
+      ) : <p className="muted" style={{ marginTop: "var(--i3)" }}>No hay creativos en estado «aprobado». Apruébalos en «Datos».</p>}
+      <div className="row row--end"><Btn kind="primary" disabled={!conn || !sel.length || !v.cuenta} onClick={() => send({ ...v, connection_id: conn, creativos: sel })}>Preparar lanzamiento</Btn></div>
+    </Panel>
+  );
+}
+
+function CapiSend() {
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({ moneda: "COP" });
+  const [send, res] = usePlan("/dd/capi/send");
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  return (
+    <Panel title="Enviar compras entregadas a Meta" note="Manda a la API de conversiones las compras contra entrega que de verdad se entregaron en los últimos 7 días, para que la plataforma optimice hacia pedidos entregados y no solo hacia formularios. El teléfono viaja solo como huella (hash), nunca el número. La huella se crea al importar la exportación logística con su columna de teléfono, en G01.">
+      <AppPicker value={conn} onChange={setConn} what="Meta Ads">
+        <FieldRow label="ID del píxel"><Text value={v.pixel_id} onChange={set("pixel_id")} /></FieldRow>
+        <FieldRow label="Moneda"><Text value={v.moneda} onChange={set("moneda")} /></FieldRow>
+      </AppPicker>
+      <div className="row row--end"><Btn kind="primary" disabled={!conn || !v.pixel_id} onClick={() => send({ ...v, connection_id: conn })}>Preparar envío</Btn></div>
+      {res?.eventos && <p className="note">{res.eventos} compras por un total de {fmtNum(res.valor)}.</p>}
+    </Panel>
+  );
+}
+
+function Discord() {
+  const { run, space } = useApp();
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({});
+  const [apply] = usePlan("/dd/discord/apply");
+  const [nota, setNota] = useState("");
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const welcome = async () => {
+    const r = await run(api<any>("/dd/discord/welcome", { body: { ...v, connection_id: conn, space: space.id } }));
+    if (r) setNota(r.nota || `${r.nuevos} miembros nuevos: bienvenida preparada en «Planes pendientes».`);
+  };
+  return (
+    <Panel title="Aplicar al servidor de Discord" note="Crea los canales y roles en borrador y publica reglas, recursos y bienvenida. «Revisar miembros nuevos» compara con la última lectura y prepara un mensaje de bienvenida para cada uno. Doomsday no mantiene un bot conectado en vivo: lo revisas cuando quieras y apruebas el lote.">
+      <AppPicker value={conn} onChange={setConn} what="Discord">
+        <FieldRow label="ID del servidor"><Text value={v.servidor} onChange={set("servidor")} /></FieldRow>
+        <FieldRow label="ID del canal para mensajes y bienvenida"><Text value={v.canal_mensajes} onChange={set("canal_mensajes")} /></FieldRow>
+      </AppPicker>
+      <div className="row row--end"><Btn disabled={!conn || !v.servidor || !v.canal_mensajes} onClick={welcome}>Revisar miembros nuevos</Btn><Btn kind="primary" disabled={!conn || !v.servidor} onClick={() => apply({ ...v, connection_id: conn })}>Preparar la estructura</Btn></div>
+      {nota && <p className="note">{nota}</p>}
+    </Panel>
+  );
+}
+
+function ThemeUpload() {
+  const [conn, setConn] = useState("");
+  const [tema, setTema] = useState("");
+  const [send] = usePlan("/dd/theme/upload");
+  return (
+    <Panel title="Instalar las secciones en un tema" note="Sube las seis secciones a la carpeta «sections» del tema que indiques. Usa siempre un duplicado del tema, no el publicado: las secciones aún no se han probado en una tienda real. El ID del tema está en la URL del editor de temas.">
+      <ConnPicker value={conn} onChange={setConn}><FieldRow label="ID del tema (duplicado)"><Text value={tema} onChange={setTema} /></FieldRow></ConnPicker>
+      <div className="row row--end"><Btn kind="primary" disabled={!conn || !tema} onClick={() => send({ connection_id: conn, tema_id: tema })}>Preparar instalación</Btn></div>
+    </Panel>
+  );
+}
+
+function GmailSync({ module }: { module: string }) {
+  const { run, space } = useApp();
+  const [conn, setConn] = useState("");
+  const [q, setQ] = useState("is:unread newer_than:3d -category:promotions");
+  const [res, setRes] = useState<any>(null);
+  const go = async () => { const r = await run(api<any>("/dd/sync/gmail", { body: { connection_id: conn, consulta: q, module, space: space.id } })); if (r) setRes(r); };
+  return (
+    <Panel title="Traer correos de Gmail" note="Solo lectura. Trae remitente, asunto y extracto de hasta 25 correos a la bandeja; después «Clasificar la bandeja» los ordena y prepara borradores. Los mensajes de WhatsApp e Instagram no llegan solos: exigen una dirección pública que Doomsday, al correr en tu equipo, no tiene.">
+      <AppPicker value={conn} onChange={setConn} what="Gmail"><FieldRow label="Búsqueda de Gmail"><Text value={q} onChange={setQ} /></FieldRow></AppPicker>
+      <div className="row row--end"><Btn kind="primary" disabled={!conn} onClick={go}>Traer correos</Btn></div>
+      {res && <p className="note">{res.leidos} leídos, {res.nuevos} nuevos. {res.nota}</p>}
+    </Panel>
+  );
+}
+
+function OuraSync() {
+  const { run, space } = useApp();
+  const [conn, setConn] = useState("");
+  const [res, setRes] = useState<any>(null);
+  const go = async () => { const r = await run(api<any>("/dd/sync/oura", { body: { connection_id: conn, space: space.id } })); if (r) setRes(r); };
+  return (
+    <Panel title="Traer el sueño de Oura" note="Solo lectura: horas dormidas y eficiencia de los últimos 14 días. Otros relojes entran por la exportación de Apple Health de arriba.">
+      <AppPicker value={conn} onChange={setConn} what="Oura" />
+      <div className="row row--end"><Btn kind="primary" disabled={!conn} onClick={go}>Traer noches</Btn></div>
+      {res && <p className="note">{res.dias} noches leídas, {res.nuevos} nuevas.</p>}
     </Panel>
   );
 }
