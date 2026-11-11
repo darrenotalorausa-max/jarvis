@@ -13,6 +13,8 @@ from .handlers.common import norm
 from .util import dumps, loads, now_iso
 
 TOOLS: dict[str, dict] = {}
+EXTRA_PARSERS: list = []  # funciones (texto) -> (herramienta, argumentos) | None, consultadas antes que los comandos propios
+EXTRA_HELP: list[str] = []
 
 
 def tool(name: str, description: str, args: type[BaseModel], kind: str):
@@ -274,6 +276,9 @@ _DELIV_ID = re.compile(r"ent_[0-9a-f]{12}")
 def parse_command(text: str) -> tuple[str, dict] | None:
     """Comandos tipados deterministas (sin modelo). Devuelve (herramienta, argumentos) o None."""
     raw = text.strip()
+    for extra in EXTRA_PARSERS:
+        if hit := extra(raw):
+            return hit
     n = norm(raw)
     job = _JOB_ID.search(raw)
     deliv = _DELIV_ID.search(raw)
@@ -360,7 +365,7 @@ def handle(space_id: str, text: str, origin: str = "texto") -> dict:
     _log(space_id, "usuario", text, {"origen": origin})
     n = norm(text)
     if n in ("ayuda", "help") or "que puedes hacer" in n:
-        out = {"reply": HELP, "speak": "Te muestro en pantalla lo que puedo hacer.", "mode": "comando"}
+        out = {"reply": HELP + " " + " ".join(EXTRA_HELP), "speak": "Te muestro en pantalla lo que puedo hacer.", "mode": "comando"}
     elif cmd := parse_command(text):
         if cmd[0] == "capturar":
             cmd[1]["origin"] = origin

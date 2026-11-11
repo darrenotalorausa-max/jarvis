@@ -1,4 +1,4 @@
-# Jarvis OS — guía compacta para trabajar en este repositorio
+# Vision (Jarvis + Doomsday) — guía compacta para trabajar en este repositorio
 
 Monolito local-first. Backend Python/FastAPI + SQLite, worker en proceso aparte, frontend React/TS/Vite servido por el backend.
 Idioma del producto y de la documentación: español.
@@ -29,9 +29,12 @@ Para una instancia limpia de pruebas: `JARVIS_HOME=<carpeta vacía> JARVIS_SECRE
 Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`RecordsPanel` genera CRUD desde el esquema,
 `DeliverableView`, `shared`, `ui`, `Core`), `views/` (una por zona de navegación).
 
-## Doomsday
-App aparte sobre este motor (`backend/doomsday`, `frontend/src/doomsday`, puerto 8766, datos en `doomsday_home/`): 100 módulos declarados en `catalog.py`, skills en `skills/*.md`, cálculos en `tools.py`. Guía: `docs/DOOMSDAY.md`.
-`./scripts/start_doomsday.sh` · `pytest tests/test_doomsday.py` · `node frontend/e2e/doomsday.cjs`. Cumple las mismas reglas de abajo; no se añade lógica de Doomsday dentro de `jarvis/`.
+## Vision = Jarvis + Doomsday (una sola aplicación)
+El producto se llama **Vision**: un proceso, una base de datos y una interfaz. `backend/jarvis/` es el motor y los estudios de Jarvis; `backend/doomsday/` aporta los 100 módulos
+(`catalog.py`, `skills/*.md`, `tools.py`, `tools2.py`, `plans.py`, `integrations.py`) y se registra con `doomsday.load()` (lo llaman el worker y la API). `doomsday/bridge.py` da a Jarvis
+las herramientas para manejar los módulos; `doomsday/seed.py` asigna las cuatro capas reutilizando los espacios que ya existan; `doomsday/fusion.py` importa una vez los datos de la
+antigua carpeta `doomsday_home/`. La interfaz única está en `frontend/src/doomsday/` (`App.tsx` es el armazón; las vistas de Jarvis siguen en `views/`). Guía: `docs/DOOMSDAY.md`.
+Pruebas de navegador (cada una contra una instancia LIMPIA): `node frontend/e2e/smoke.cjs` (Jarvis) y `node frontend/e2e/doomsday.cjs` (módulos).
 
 ## Reglas que no se rompen
 - Todo dato lleva `space_id`; nunca se lee ni enlaza entre espacios. Caché separada por espacio.

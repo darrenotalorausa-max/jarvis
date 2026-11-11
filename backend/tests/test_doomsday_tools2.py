@@ -276,3 +276,50 @@ def test_capi_discord_theme_gmail_and_oura(dd, fake):
     fake.custom["api.ouraring.com"] = lambda req: httpx.Response(200, json={"data": [{"day": "2026-11-09", "type": "long_sleep", "total_sleep_duration": 27000, "efficiency": 91}]})
     assert c.post("/api/dd/sync/oura", json={"connection_id": ou["id"]}).json()["nuevos"] == 1
     assert records.list_records(per, "dd_sueno")[0]["data"]["horas"] == 7.5
+
+
+# ---------- Vision: Jarvis maneja Doomsday y los datos antiguos se fusionan
+
+def test_jarvis_assistant_drives_doomsday_modules(dd):
+    from jarvis import assistant
+    c, interna, per = dd["client"], dd["spaces"]["interna"], dd["spaces"]["personal"]
+    records.create(interna, "dd_pedido", "E1", {"ref": "E1", "fecha": date.today().isoformat(), "producto": "Faja", "precio": 100, "costo_producto": 30, "flete": 10}, status="entregado")
+    # Desde el espacio personal: la herramienta corre en la capa del módulo (interna), no en la actual.
+    r = c.post("/api/assistant", json={"space": per, "text": "G02 calcula"}).json()
+    assert r["tool"] == "doomsday_herramienta" and "Utilidad neta: 60" in r["reply"] and r["mode"] == "comando"
+    o = c.post("/api/assistant", json={"space": per, "text": "G04: ficha para la faja postural"}).json()
+    job = jobs.get(o["job"]["id"])
+    assert o["tool"] == "doomsday_orden" and job["type"] == "dd_run" and job["space_id"] == interna and job["params"]["inputs"]["orden"] == "ficha para la faja postural"
+    m = c.post("/api/assistant", json={"space": per, "text": "módulos de pauta"}).json()
+    assert m["tool"] == "doomsday_modulos" and "M01" in m["data"]["modulos"]
+    assert c.post("/api/assistant", json={"space": per, "text": "brief"}).json()["data"]["modulo"] == "P07"
+    assert "100 módulos de Doomsday" in c.post("/api/assistant", json={"space": per, "text": "ayuda"}).json()["reply"]
+    # Los comandos de Jarvis de siempre siguen intactos.
+    assert assistant.parse_command("anota comprar dominios")[0] == "capturar" and assistant.parse_command("busca leads de dentistas en Cali")[0] == "buscar_leads"
+    assert assistant.parse_command("pausa los agentes")[0] == "pausar_agentes" and assistant.parse_command("A10")[0] == "doomsday_herramienta"
+    assert {"doomsday_orden", "doomsday_herramienta", "doomsday_modulos", "buscar_oportunidades", "generar_contenido"} <= set(assistant.TOOLS)
+
+
+def test_old_doomsday_home_is_merged_without_overwriting(dd, tmp_path, monkeypatch):
+    import sqlite3
+    from jarvis import config
+    from doomsday import fusion
+    mine = records.create(dd["spaces"]["interna"], "dd_pedido", "Mío", {"ref": "M1"})
+    # Una carpeta antigua de Doomsday con su propia base: se construye con el mismo esquema.
+    old = tmp_path / "doomsday_home"
+    main_home = config.home()
+    monkeypatch.setenv("JARVIS_HOME", str(old))
+    db.migrate()
+    db.execute("INSERT INTO spaces(id,name,kind,ai_policy,created_at,updated_at) VALUES('esp_viejo','Interna antigua','negocio','nube_permitida','2026-11-01','2026-11-01')")
+    db.set_setting("dd_spaces", {"interna": "esp_viejo"})
+    records.create("esp_viejo", "dd_pedido", "Antiguo", {"ref": "A1"})
+    (old / "skills").mkdir()
+    (old / "skills" / "G04.md").write_text("**Rol.** Mi skill antigua de fichas, con su método y su estándar.", encoding="utf-8")
+    monkeypatch.setenv("JARVIS_HOME", str(main_home))
+    out = fusion.import_old_home(old)
+    assert "1 registros" in out[0] and "intacta" in out[0]
+    assert records.list_records("esp_viejo", "dd_pedido")[0]["title"] == "Antiguo" and records.get(mine["id"])["title"] == "Mío"
+    assert db.get_setting("dd_spaces") == dd["spaces"]  # las capas actuales no se pisan; la antigua queda como un espacio más
+    from doomsday import skills
+    assert skills.get("G04")["origen"] == "propia"
+    assert fusion.import_old_home(old) == [] and (old / "data" / "jarvis.db").is_file()  # una sola vez; la carpeta antigua no se toca

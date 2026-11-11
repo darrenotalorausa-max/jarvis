@@ -1,10 +1,10 @@
-// Recorrido en navegador de Doomsday contra una instancia LIMPIA en marcha (por defecto http://127.0.0.1:8766).
+// Recorrido en navegador de los módulos de Doomsday dentro de Vision, contra una instancia LIMPIA en marcha (por defecto http://127.0.0.1:8765).
 // Uso: node frontend/e2e/doomsday.cjs   ·   Variables: DOOMSDAY_URL, CAPTURAS=1 (guarda capturas en frontend/e2e/capturas)
 const { chromium } = require("playwright");
 const fs = require("fs");
 const path = require("path");
 
-const BASE = process.env.DOOMSDAY_URL || "http://127.0.0.1:8766";
+const BASE = process.env.JARVIS_URL || "http://127.0.0.1:8765";
 const SHOTS = process.env.CAPTURAS ? path.join(__dirname, "capturas") : null;
 let step = 0;
 const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}`);
@@ -20,7 +20,13 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   const post = (url, body) => page.evaluate(async ([u, b]) => { const r = await fetch(u, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) }); return r.json(); }, [url, body]);
 
   await page.goto(BASE);
-  await page.getByRole("heading", { name: "DOOMSDAY", level: 1 }).waitFor();
+  await page.waitForSelector(".wizard, .hero");
+  if (await page.locator(".wizard").count()) {  // instancia nueva: se omite el asistente de primer inicio (lo recorre smoke.cjs)
+    await page.evaluate(() => fetch("/api/settings", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ onboarded: true }) }));
+    await page.evaluate(() => fetch("/api/dd/catalog"));  // asigna las cuatro capas
+    await page.reload();
+  }
+  await page.getByRole("heading", { name: "VISION", level: 1 }).waitFor();
   const cat = await page.evaluate(() => fetch("/api/dd/catalog").then((r) => r.json()));
   if (cat.modulos.length !== 100) throw new Error("El catálogo no tiene 100 módulos");
   if ((await page.locator(".modrow__rank").count()) !== 20) throw new Error("El tablero no muestra los 20 mejores");
@@ -102,7 +108,7 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   ok("La skill se edita y queda como versión propia");
   await shot("g04-skill");
   await page.getByRole("button", { name: "Volver a la integrada" }).click();
-  await page.getByRole("button", { name: "Confirmar" }).or(page.getByRole("button", { name: "Sí" })).or(page.getByRole("button", { name: "Continuar" })).first().click();
+  await page.locator(".modal").getByRole("button", { name: /^(Confirmar|Sí|Continuar)/ }).first().click();
   await page.getByText("integrada, versión").waitFor();
   ok("Se restaura la skill integrada");
   await page.goto(`${BASE}/#/skills`);
@@ -147,7 +153,7 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   await portal.getByRole("button", { name: "Crear espacio del cliente" }).click();
   await portal.getByRole("cell", { name: "Acme", exact: true }).waitFor();
   await portal.locator("tr", { hasText: "Acme" }).getByRole("button", { name: "Trabajar en este espacio" }).click();
-  await page.waitForFunction((base) => { const el = document.querySelector(".dtop select"); return !!el && el.value !== base && el.selectedOptions[0]?.textContent === "Acme"; }, cat.espacios.clientes);
+  await page.waitForFunction((base) => { const el = document.querySelector(".dtop select"); return !!el && el.value !== base && (el.selectedOptions[0]?.textContent || "").startsWith("Acme"); }, cat.espacios.clientes);
   ok("V06 crea el espacio de un cliente y trabaja dentro de él");
 
   // Funcionalidad propia sin IA: propuesta por plantilla guardada como entregable, lista de pasos y secciones del tema.
@@ -182,6 +188,21 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
     await page.locator(".panel__title", { hasText: title }).waitFor();
   }
   ok("S01 entrega las secciones Liquid; C05, M02, M08, R08, P03 y H02 muestran su integración");
+
+  // Jarvis maneja Doomsday: una orden directa ejecuta la herramienta de un módulo y otra busca módulos, sin IA.
+  await page.goto(BASE);
+  const jarvis = page.locator(".panel", { hasText: "Pídeselo a Jarvis" });
+  await jarvis.locator("textarea").fill("G02 calcula");
+  await jarvis.getByRole("button", { name: "Enviar a Jarvis" }).click();
+  await jarvis.getByText("Utilidad neta COD por producto, campaña y ciudad").waitFor();
+  await jarvis.getByRole("button", { name: "módulos de pauta" }).click();
+  await jarvis.getByText("M01 Guardián de pauta").waitFor();
+  ok("Jarvis ejecuta herramientas de Doomsday y encuentra módulos desde una sola caja");
+  for (const r of ["comando", "negocios", "oportunidades", "leads", "contenido", "video", "shopify", "clipping", "proyectos", "operaciones", "personal", "biblioteca"]) {
+    await page.goto(`${BASE}/#/${r}`);
+    await page.waitForSelector(".page__title, .command", { timeout: 10000 });
+  }
+  ok("Los doce estudios de Jarvis abren dentro de Vision");
 
   // Teleprompter (C06) y vistas del motor.
   await page.goto(`${BASE}/#/m/C06`);

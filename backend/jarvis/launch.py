@@ -18,7 +18,7 @@ def _port_free(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) != 0
 
 
-WINDOW_TITLE = "Jarvis OS"  # Doomsday lo cambia al reutilizar la ventana de aplicación
+WINDOW_TITLE = "Vision"
 
 
 def _window(url: str) -> None:
@@ -33,7 +33,7 @@ def _desktop(server, url: str) -> bool:
     try:
         import webview
     except Exception:
-        print("[Jarvis] La ventana de aplicación no está disponible en este equipo (falta pywebview); se abre en el navegador.")
+        print("[Vision] La ventana de aplicación no está disponible en este equipo (falta pywebview); se abre en el navegador.")
         return False
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
@@ -44,7 +44,7 @@ def _desktop(server, url: str) -> bool:
     try:
         _window(url)
     except Exception as exc:
-        print(f"[Jarvis] No se pudo abrir la ventana de aplicación ({type(exc).__name__}); se abre en el navegador.")
+        print(f"[Vision] No se pudo abrir la ventana de aplicación ({type(exc).__name__}); se abre en el navegador.")
         webbrowser.open(url)
         try:
             thread.join()
@@ -72,20 +72,20 @@ def main() -> int:
             except Exception:
                 webbrowser.open(url)
             return 0
-        print(f"[Jarvis] El puerto {port} ya está en uso. Si Jarvis ya está abierto, entra en {url}\n"
+        print(f"[Vision] El puerto {port} ya está en uso. Si Jarvis ya está abierto, entra en {url}\n"
               f"         Si lo usa otro programa, define JARVIS_PORT con otro número y vuelve a iniciar.")
         return 2
     from . import access
     if access.exposed():
         if not access.enabled():
-            print(f"[Jarvis] No se inicia: JARVIS_HOST={host} abre Jarvis a tu red, y eso exige definir JARVIS_ACCESS_CODE\n"
+            print(f"[Vision] No se inicia: JARVIS_HOST={host} abre Jarvis a tu red, y eso exige definir JARVIS_ACCESS_CODE\n"
                   f"         (10 caracteres o más) en el archivo .env. Sin código de acceso, deja JARVIS_HOST sin definir.")
             return 2
-        print("[Jarvis] ACCESO EN RED ACTIVADO: otros dispositivos de tu red pueden entrar con el código de acceso.\n"
+        print("[Vision] ACCESO EN RED ACTIVADO: otros dispositivos de tu red pueden entrar con el código de acceso.\n"
               "         La conexión no va cifrada: úsalo solo en tu red de casa, nunca en redes públicas.")
         for u in access.lan_urls():
-            print(f"[Jarvis] Desde tu celular (misma wifi): {u}")
-    print(f"[Jarvis] Base de datos: {config.db_path()}" + (f" (migraciones aplicadas: {applied})" if applied else ""))
+            print(f"[Vision] Desde tu celular (misma wifi): {u}")
+    print(f"[Vision] Base de datos: {config.db_path()}" + (f" (migraciones aplicadas: {applied})" if applied else ""))
     worker_log = open(config.logs_dir() / "worker.out.log", "a", encoding="utf-8")
     worker = subprocess.Popen([sys.executable, "-m", "jarvis.worker"], cwd=str(config.REPO_ROOT / "backend"), stdout=worker_log, stderr=subprocess.STDOUT, env={**os.environ, "JARVIS_RECOVER_ALL": "1"})
     stop = threading.Event()
@@ -96,7 +96,7 @@ def main() -> int:
             if worker.poll() is None:
                 db.set_setting("worker_heartbeat", time.time())
             else:
-                print(f"[Jarvis] El worker se detuvo (código {worker.returncode}). Revisa logs/worker.out.log y reinicia Jarvis.")
+                print(f"[Vision] El worker se detuvo (código {worker.returncode}). Revisa logs/worker.out.log y reinicia Jarvis.")
                 return
 
     db.set_setting("worker_heartbeat", time.time())
@@ -104,16 +104,21 @@ def main() -> int:
     import uvicorn
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s",
                         handlers=[logging.FileHandler(config.logs_dir() / "api.log", encoding="utf-8")])
-    from . import api
-    server = uvicorn.Server(uvicorn.Config(api.app, host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3))
-    api.app.state.shutdown = lambda: setattr(server, "should_exit", True)
+    from doomsday import app as unified  # la API de Jarvis más los módulos de Doomsday: una sola aplicación
+    from doomsday import fusion
+    for line in fusion.import_old_home():  # antes de sembrar las capas: si había datos de Doomsday aparte, sus capas se conservan
+        print(f"[Vision] {line}")
+    if db.get_setting("onboarded"):
+        unified.ensure_seed()  # en una instalación nueva, las capas se asignan después del primer inicio, sobre los espacios que cree
+    server = uvicorn.Server(uvicorn.Config(unified.app, host=host, port=port, log_level="warning", access_log=False, timeout_graceful_shutdown=3))
+    unified.app.state.shutdown = lambda: setattr(server, "should_exit", True)
     try:
         if app_mode and _desktop(server, url):
             pass  # la ventana se cerró: se detiene todo abajo
         else:
             if app_mode or not os.environ.get("JARVIS_NO_BROWSER"):
                 threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-            print(f"[Jarvis] Abierto en {url}  (Ctrl+C para detener)")
+            print(f"[Vision] Abierto en {url}  (Ctrl+C para detener)")
             server.run()
     finally:
         stop.set()
@@ -125,7 +130,7 @@ def main() -> int:
             except subprocess.TimeoutExpired:
                 worker.kill()
         worker_log.close()
-        print("[Jarvis] Detenido. Tus datos están en la carpeta data/.")
+        print("[Vision] Detenido. Tus datos están en la carpeta data/.")
     return 0
 
 

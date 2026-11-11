@@ -154,6 +154,11 @@ Aplicación aparte (`backend/doomsday`, `frontend/src/doomsday`, puerto 8766, da
 - Lectura de Gmail y de Oura; sueño importado de Apple Health.
 - Interfaz nueva con el lenguaje del manual DOOMSDAY del usuario, claro y oscuro, dial de 100 segmentos navegable con teclado.
 
+**Vision: fusión de Jarvis y Doomsday (2026-11-11).** Una sola aplicación (`jarvis.launch` sirve la API unificada; el worker carga `doomsday.load()`). Probado: 136 pruebas de backend;
+`smoke.cjs` completo (todo Jarvis: primer inicio, comando, estudios, apps, monitores, usuarios, memoria, manos libres, teclado, móvil) y `doomsday.cjs` (22 pasos) contra la aplicación unificada.
+Jarvis ejecuta herramientas y órdenes de los módulos por comando directo; las capas reutilizan los espacios existentes; la carpeta `doomsday_home/` se importa una vez sin pisar nada.
+No probado: la importación con una carpeta `doomsday_home/` real de un usuario (solo con una de prueba) y la vista del rol «equipo» en navegador.
+
 **No probado con cuentas reales:** ninguna orden se ha ejecutado con un modelo real (calidad de las skills sin evaluar). Todas las plataformas (Shopify, Meta, TikTok, WhatsApp, Instagram, LinkedIn, X, Discord, Gmail, Oura) se probaron solo con transporte simulado y sus rutas se escribieron de memoria de la documentación pública: hay que validarlas una a una. Las secciones Liquid no se han instalado en ninguna tienda. Generación de video, micrófono, `START_DOOMSDAY.cmd` y la ventana `--app` sin ejecutar.
 
 **No construido (y por qué):** publicar en TikTok y YouTube y anuncios de video (exigen subir el archivo binario; el conector solo envía JSON); lanzar en TikTok Ads; recibir WhatsApp o mensajes de Instagram (exigen webhook público y Doomsday es local); cobro en línea con tarjeta (necesita una pasarela) y firma certificada; Dropi por API; Higgsfield directo; bot de Discord conectado en vivo (se revisa a petición); compra de prueba en tiendas; un tema Shopify completo (son secciones que se añaden al tuyo); relojes distintos de Oura y Apple Health; paginación de informes de pauta de más de 500 filas.

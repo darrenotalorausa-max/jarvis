@@ -30,6 +30,8 @@ def handler(type_: str):
 
 def load_handlers() -> None:
     from .handlers import opportunities, leads, content, video, shopify, clipping, exports, apps, study, media  # noqa: F401
+    import doomsday  # noqa: F401  (módulos de Doomsday: tipos de registro, manejadores, plantillas de apps y herramientas de Jarvis)
+    doomsday.load()
 
 
 class JobCtx:
@@ -172,6 +174,7 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
     last_beat = 0.0
     last_poll = 0.0
     last_mon = time.monotonic() - 45
+    last_stores = time.monotonic()
     log.info("Worker %s iniciado (concurrencia %d)", worker_id, max_concurrent)
     while not stop.is_set():
         for jid in [j for j, (th, _) in running.items() if not th.is_alive()]:
@@ -195,6 +198,13 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
                 schedules.run_due()
             except Exception:
                 log.warning("Fallo al ejecutar monitores")
+        if time.monotonic() - last_stores > 3600:
+            last_stores = time.monotonic()
+            try:
+                from doomsday import tools as dd_tools
+                dd_tools.run_store_checks()
+            except Exception:
+                log.warning("Fallo en la ronda del monitor de tiendas")
         if time.monotonic() - last_beat > 5:
             db.set_setting("worker_heartbeat", time.time())
             last_beat = time.monotonic()

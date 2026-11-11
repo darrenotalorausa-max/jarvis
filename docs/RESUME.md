@@ -10,7 +10,8 @@ Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el c�
 
 Último bloque: Claude y ChatGPT por API, conector universal (`connectors.py`, `views/Apps.tsx`), monitores (`monitors.py`), usuarios con rol (`access.py`), importadores (`imports.py`), tutor y notas (`handlers/study.py`), texto bíblico (`scripture.py`), MCP (`mcp_server.py`), modo aplicación (`launch.py --app`, `scripts/windows/`) y Docker. 100 pruebas y recorrido en navegador en verde. Añadido después: medios por API (`providers/media.py`), memoria (`memory.py`), horarios (`schedules.py`), aprobaciones por Telegram (`notify.py`) y manos libres (`views/Command.tsx`, `voice.ts`). HUD de Comando rediseñado sin tarjetas (`docs/DESIGN.md`).
 
-## Doomsday (sesión 2026-11-11, rama `claude/cool-gates-knm1i3`)
+## Vision = Jarvis + Doomsday fusionados (sesión 2026-11-11, rama `claude/cool-gates-knm1i3`)
+Una sola aplicación: `./scripts/start.sh` (puerto 8765). Ya no existe un Doomsday aparte; ver `docs/DOOMSDAY.md`.
 Construido y probado en Linux; ver `docs/DOOMSDAY.md` y la sección Doomsday de `IMPLEMENTATION_STATUS.md`. Para retomar, en orden de valor:
 1. Conectar una IA real en Doomsday (Conexiones) y evaluar las skills del top 5 (G04, M06, G02, M01, V02) con casos reales; ajustar `backend/doomsday/skills/*.md`.
 2. Importar las skills propias del usuario (Dawn, tema, guiones) desde Skills → «Importar mis skills».

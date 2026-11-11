@@ -59,6 +59,16 @@ def test_seed_is_idempotent(dd):
     assert db.one("SELECT COUNT(*) c FROM spaces")["c"] == 4
 
 
+def test_layers_reuse_existing_jarvis_spaces(space):
+    """Vision: si Jarvis ya tiene un espacio personal y uno de negocio, las capas los usan; solo se crean las que faltan."""
+    from doomsday import seed
+    personal, negocio, otro = space("Personal", "personal", "solo_local"), space("Nova", "negocio"), space("Segunda marca", "negocio")
+    capas = seed.ensure_seed()
+    assert capas["personal"] == personal and capas["interna"] == negocio and otro not in capas.values()
+    assert db.one("SELECT COUNT(*) c FROM spaces")["c"] == 5 and db.one("SELECT ai_policy FROM spaces WHERE id=?", (personal,))["ai_policy"] == "solo_local"
+    assert seed.ensure_seed() == capas
+
+
 def test_skill_override_history_restore_and_import(dd):
     c = dd["client"]
     base = c.get("/api/dd/skills/G04").json()

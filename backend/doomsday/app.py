@@ -14,33 +14,17 @@ from jarvis.providers.base import ProviderError
 from jarvis.security import safe_join
 from jarvis.util import new_id, now_iso
 
-from . import VERSION, catalog, engine, integrations, kinds, plans, skills, tools, tools2  # noqa: F401
+from . import VERSION, catalog, engine, integrations, kinds, load, plans, skills, tools, tools2  # noqa: F401
+from .seed import ensure_seed
 
-kinds.register()
-integrations.register()
-plans.register()
+load()
 japi.JOB_TYPES["dd_plan"] = "Plan de acciones externas"
 japi.JOB_TYPES["dd_run"] = "Orden de Doomsday"
 japi.JOB_TYPES["dd_clip"] = "Recorte de clip"
 app = japi.app
-app.title = "Doomsday"
+app.title = "Vision"
 router = APIRouter(prefix="/api/dd")
-DIST = config.REPO_ROOT / "frontend" / "dist-doomsday"
-
-
-def ensure_seed() -> dict:
-    """Crea una vez las cuatro capas del ecosistema como espacios aislados. Idempotente."""
-    spaces = db.get_setting("dd_spaces", {}) or {}
-    for key, (name, kind, _) in catalog.LAYERS.items():
-        if key in spaces and db.one("SELECT id FROM spaces WHERE id=?", (spaces[key],)):
-            continue
-        sid = new_id("esp")
-        db.execute("INSERT INTO spaces(id,name,kind,ai_policy,created_at,updated_at) VALUES(?,?,?,?,?,?)", (sid, name, kind, "nube_permitida", now_iso(), now_iso()))
-        spaces[key] = sid
-    db.set_setting("dd_spaces", spaces)
-    if not db.get_setting("onboarded"):
-        db.set_setting("onboarded", True)
-    return spaces
+DIST = config.REPO_ROOT / "frontend" / "dist"
 
 
 def _space_of(mod: dict, space: str | None = None) -> str:
@@ -232,8 +216,8 @@ def frontend(full_path: str):
     if full_path.startswith("api/"):
         raise HTTPException(404, "No encontrado.")
     if DIST.is_dir():
-        target = safe_join(DIST, full_path) if full_path else DIST / "doomsday.html"
+        target = safe_join(DIST, full_path) if full_path else DIST / "index.html"
         if target.is_file():
             return FileResponse(target)
-        return FileResponse(DIST / "doomsday.html", headers={"Cache-Control": "no-cache"})
-    return PlainTextResponse("La interfaz de Doomsday no está compilada. Ejecuta scripts/setup.sh (o SETUP_JARVIS.cmd).", status_code=503)
+        return FileResponse(DIST / "index.html", headers={"Cache-Control": "no-cache"})
+    return PlainTextResponse("La interfaz no está compilada. Ejecuta scripts/setup.sh (o SETUP_JARVIS.cmd).", status_code=503)

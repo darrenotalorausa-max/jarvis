@@ -1,5 +1,8 @@
 # Jarvis OS · Empieza aquí
 
+> **Ahora es Vision.** Jarvis y Doomsday son una sola aplicación: se abre igual que antes (`START_JARVIS.cmd`, `START_VISION.cmd` o `./scripts/start.sh`) y dentro están
+> Jarvis (voz y chat), sus estudios y los 100 módulos de Doomsday. Detalle en `docs/DOOMSDAY.md`.
+
 Mesa de oportunidades + fábrica de ejecución, en tu equipo. Una sola aplicación local: investigas, documentas evidencia,
 preparas materiales, revisas, apruebas, exportas y registras resultados. Tus datos se quedan en esta carpeta.
 

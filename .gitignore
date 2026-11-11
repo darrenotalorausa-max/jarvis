@@ -10,5 +10,4 @@ logs/
 .env
 *.log
 frontend/e2e/capturas/
-frontend/dist-doomsday/
 doomsday_home/

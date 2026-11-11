@@ -22,7 +22,7 @@ const step = (t) => console.log("·", t);
   const go = async (route) => { await page.goto(`${BASE}/#/${route}`); await page.waitForSelector(".page__title, .command", { timeout: 10000 }); };
 
   await page.goto(BASE);
-  await page.waitForSelector(".wizard, .command");
+  await page.waitForSelector(".wizard, .command, .hero");
   if (await page.locator(".wizard").count()) {
     step("primer inicio");
     await page.getByLabel(/Cómo te llamas/).fill("Ana");
@@ -38,7 +38,8 @@ const step = (t) => console.log("·", t);
     await shot("02-recorrido-sin-ia");
     await page.getByRole("button", { name: "Entrar en Jarvis" }).click();
   }
-  await page.waitForSelector(".command");
+  await page.waitForSelector(".hero");  // Vision abre en el tablero; Jarvis (voz y chat) está en #/comando
+  await go("comando");
 
   step("comando: órdenes por texto");
   const order = page.getByLabel("Orden para Jarvis");
@@ -98,7 +99,7 @@ const step = (t) => console.log("·", t);
   await page.getByRole("heading", { name: "Clipping" }).waitFor();
 
   step("personal: crear, editar, archivar");
-  await page.locator(".top select").selectOption({ label: "Personal · Personal" });
+  await page.locator(".dtop select").selectOption({ label: "Personal · Personal" });
   await go("personal");
   await page.getByPlaceholder("Añadir tarea…").fill("Leer 20 páginas");
   await page.getByRole("button", { name: "Añadir", exact: true }).click();
@@ -125,7 +126,7 @@ const step = (t) => console.log("·", t);
   await page.getByRole("tab", { name: "Tablero" }).click();
   await page.getByText("Patrimonio neto").waitFor();
   await shot("21-personal-tablero");
-  await page.locator(".top select").selectOption({ index: 1 });
+  await page.locator(".dtop select").selectOption({ index: 1 });
 
   step("video: importar, segmentar, previsualizar y exportar con FFmpeg");
   const clip = path.join(OUT, "prueba.mp4");
@@ -255,7 +256,7 @@ const step = (t) => console.log("·", t);
   await shot("65-usuarios");
 
   step("personal: extracto bancario, texto bíblico y preguntas a las notas sin IA");
-  await page.locator(".top select").selectOption({ label: "Personal · Personal" });
+  await page.locator(".dtop select").selectOption({ label: "Personal · Personal" });
   await go("personal");
   await page.getByRole("tab", { name: "Patrimonio" }).click();
   await page.getByRole("tab", { name: "Presupuesto" }).click();
@@ -287,7 +288,7 @@ const step = (t) => console.log("·", t);
   await page.getByRole("button", { name: "Preguntar" }).click();
   await page.locator(".toast, .panel").filter({ hasText: /modelo|No encontré|conexi/i }).first().waitFor();
   await shot("68-notas");
-  await page.locator(".top select").selectOption({ index: 1 });
+  await page.locator(".dtop select").selectOption({ index: 1 });
 
   step("memoria, agente con horario y generación de medios sin proveedor");
   await go("comando");

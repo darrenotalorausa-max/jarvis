@@ -241,3 +241,12 @@ td.neg { color: var(--danger); }
 
 .sechead { font-size: 13px; font-weight: 600; color: var(--ink); margin: var(--i4) 0 0; display: flex; gap: var(--i3); align-items: baseline; }
 .sechead span { font-weight: 400; color: var(--ink-3); }
+
+/* Estudios de Jarvis dentro de Vision */
+.dgroup summary { cursor: pointer; list-style: none; display: flex; justify-content: space-between; align-items: center; border-radius: var(--r-tag); }
+.dgroup summary::-webkit-details-marker { display: none; }
+.dgroup summary::after { content: "+"; font-size: 15px; color: var(--ink-3); }
+.dgroup[open] summary::after { content: "–"; }
+.dgroup summary:hover { color: var(--ink); }
+.dmain .command { min-height: calc(100vh - 150px); border-radius: var(--r-panel); overflow: hidden; }
+.dtop select.input { max-width: 230px; text-overflow: ellipsis; }

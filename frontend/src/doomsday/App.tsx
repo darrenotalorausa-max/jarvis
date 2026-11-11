@@ -2,7 +2,14 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type C
 import { api, type Deliverable } from "../api";
 import { useApp, useData } from "../store";
 import { Badge, Btn, Check, ErrorBox, FieldRow, Modal, Panel, Select, Stat, Text } from "../components/ui";
-import { Review } from "../views/manage";
+import { Operations, Personal, Projects, Review } from "../views/manage";
+import { Command } from "../views/Command";
+import { Clipping, Content, Leads, Opportunities, Shopify } from "../views/business";
+import { Video } from "../views/Video";
+import { Business } from "../views/CommandCenter";
+import { Library } from "../views/Library";
+import { App as TeamApp } from "../App";
+import { setSound, soundOn } from "../sound";
 import { Connections } from "../views/Connections";
 import { Apps } from "../views/Apps";
 import { System } from "../views/System";
@@ -37,17 +44,22 @@ const FIXED: [string, string, string][] = [
   ["sistema", "Trabajos, uso y respaldo", "M4 6h16M4 12h10M4 18h13M19 12l2 2l-2 2"],
 ];
 
-/** Marca: un reloj a pocos minutos de la medianoche. La manecilla azul es «lo siguiente». */
+/** Marca de Vision: un ojo. El iris azul es «lo siguiente». */
 function Mark() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      <circle cx="16" cy="16" r="12.6" fill="none" stroke="var(--ink)" strokeWidth="2.4" />
-      <path d="M16 16V8.6" stroke="var(--ink)" strokeWidth="2.4" strokeLinecap="round" />
-      <path d="M16 16L11.2 7.4" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" />
-      <circle cx="16" cy="16" r="1.9" fill="var(--ink)" />
+      <path d="M3 16C6.8 9.6 11.2 6.8 16 6.8S25.2 9.6 29 16C25.2 22.4 20.8 25.2 16 25.2S6.8 22.4 3 16Z" fill="none" stroke="var(--ink)" strokeWidth="2.2" strokeLinejoin="round" />
+      <circle cx="16" cy="16" r="4.6" fill="var(--accent)" />
     </svg>
   );
 }
+
+// Los estudios de Jarvis: sus pantallas completas, dentro de la misma aplicación.
+const STUDIOS: [string, string, () => JSX.Element][] = [
+  ["comando", "Jarvis · voz y chat", Command], ["negocios", "Centro de negocios", Business], ["oportunidades", "Mesa de oportunidades", Opportunities], ["leads", "Leads y ofertas B2B", Leads],
+  ["contenido", "Fábrica de contenido", Content], ["video", "Editor audiovisual", Video], ["shopify", "Constructor Shopify", Shopify], ["clipping", "Clipping", Clipping],
+  ["proyectos", "Proyectos, marcas y archivos", Projects], ["operaciones", "Operaciones y economía", Operations], ["personal", "Espacio personal", Personal], ["biblioteca", "Biblioteca", Library],
+];
 
 const THEMES: [string, string][] = [["dark", "Oscuro"], ["light", "Claro"], ["auto", "Automático"]];
 function ThemeSwitch() {
@@ -67,6 +79,7 @@ export function App() {
   const cat = useData<Catalog | null>(() => (owner ? api<Catalog>("/dd/catalog") : Promise.resolve(null)), [owner]);
   const ov = useOverview(owner);
   const [palette, setPalette] = useState(false);
+  const [sound, setSoundState] = useState(soundOn());
   const current = route[0] || "inicio";
   const paused = !!boot.settings.agents_paused;
   useEffect(() => {
@@ -76,15 +89,18 @@ export function App() {
   }, []);
   const mod = cat.data?.modulos.find((m) => m.id === route[1]);
   useEffect(() => {
-    document.title = `${current === "m" && mod ? `${mod.id} ${mod.nombre}` : current === "c" && cat.data ? cat.data.categorias[route[1]]?.nombre : FIXED.find((f) => f[0] === current)?.[1] || "Centro de mando"} · Doomsday`;
+    document.title = `${current === "m" && mod ? `${mod.id} ${mod.nombre}` : current === "c" && cat.data ? cat.data.categorias[route[1]]?.nombre : FIXED.find((f) => f[0] === current)?.[1] || STUDIOS.find((x) => x[0] === current)?.[1] || "Centro de mando"} · Vision`;
   }, [current, mod, cat.data, route]);
   const ctx = useMemo(() => (cat.data ? { cat: cat.data, reload: cat.reload } : null), [cat.data]);
+  if (boot.user?.role === "equipo") return <TeamApp />;  // el equipo conserva la vista de trabajo de Jarvis, limitada a sus espacios
   if (!owner) return <Guest />;
   if (cat.error) return <div className="splash"><ErrorBox message={cat.error} retry={cat.reload} /></div>;
   if (!ctx) return <div className="splash"><p className="muted">Cargando los 100 módulos…</p></div>;
   const layers = Object.entries(ctx.cat.espacios);
   const layer = layers.find(([, id]) => id === space.id)?.[0] || Object.keys(ctx.cat.capas).find((k) => ctx.cat.capas[k].tipo === space.kind) || "interna";
-  const siblings = boot.spaces.filter((s) => !s.archived && s.kind === space.kind);
+  const allSpaces = boot.spaces.filter((s) => !s.archived);
+  const studio = STUDIOS.find((x) => x[0] === current);
+  const Studio = studio?.[2];
   const running = jobs.filter((j) => j.status === "running" || j.status === "pending").length;
   const waiting = jobs.filter((j) => j.status.startsWith("waiting")).length;
   const activeCat = current === "c" ? route[1] : current === "m" ? mod?.categoria : "";
@@ -94,9 +110,12 @@ export function App() {
     <CatCtx.Provider value={ctx}>
       <div className="dshell" style={{ "--bc": `var(--${mod?.capa || layer})` } as CSSProperties}>
         <aside className="dside">
-          <a className="dbrand" href="#/"><Mark /><strong>DOOMSDAY</strong><span>Centro de mando</span></a>
+          <a className="dbrand" href="#/"><Mark /><strong>VISION</strong><span>Jarvis y Doomsday, uno solo</span></a>
           <nav className="dnav" aria-label="Principal">
             <a href="#/" aria-current={current === "inicio" ? "page" : undefined}><i className="ldot" style={{ "--lc": "var(--accent)" } as CSSProperties} /><span>Centro de mando</span></a>
+          </nav>
+          <nav className="dnav" aria-label="Jarvis">
+            <a href="#/comando" aria-current={current === "comando" ? "page" : undefined}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V7a3 3 0 0 0-3-3M6 11a6 6 0 0 0 12 0M12 17v3" /></svg><span>Hablar con Jarvis</span></a>
           </nav>
           <p className="dside__label">Capas de datos</p>
           <div className="dnav" role="group" aria-label="Capa de datos">
@@ -112,6 +131,12 @@ export function App() {
               <a key={k} href={`#/c/${k}`} aria-current={activeCat === k ? "page" : undefined} title={c.nombre}><b className="dnav__k" style={lc(c.capa)}>{k}</b><span>{CAT_SHORT[k] || c.nombre}</span></a>
             ))}
           </nav>
+          <details className="dgroup" open={!!studio && current !== "comando"}>
+            <summary className="dside__label">Estudios de Jarvis</summary>
+            <nav className="dnav" aria-label="Estudios de Jarvis">
+              {STUDIOS.slice(1).map(([id, text]) => <a key={id} href={`#/${id}`} aria-current={current === id ? "page" : undefined}><i className="ldot" /><span>{text}</span></a>)}
+            </nav>
+          </details>
           <p className="dside__label">Sistema</p>
           <nav className="dnav" aria-label="Sistema">
             {FIXED.map(([id, text, d]) => (
@@ -120,7 +145,7 @@ export function App() {
             ))}
           </nav>
           <div className="dside__foot">
-            <strong>Tú decides. Doomsday prepara.</strong>
+            <strong>Tú decides. Vision prepara.</strong>
             <span>Nada se envía, publica ni gasta solo: cada acción externa espera tu aprobación.</span>
             <span><kbd>Ctrl K</kbd> busca un módulo.</span>
           </div>
@@ -128,18 +153,20 @@ export function App() {
         <main className="dmain" id="contenido">
           <div className="dtop">
             <span className="dtop__date">{today}</span>
-            {siblings.length > 1 && <Select value={space.id} onChange={setSpace} options={siblings.map((s) => [s.id, s.name])} />}
+            <Select value={space.id} onChange={setSpace} options={allSpaces.map((s) => [s.id, `${s.name} · ${boot.space_kinds[s.kind]}`])} />
             {running > 0 && <button className="pill pill--ok" onClick={() => nav("sistema")}><i />{running} en curso</button>}
             {waiting > 0 && <button className="pill pill--warn" onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
-            <button className="pill" onClick={() => setPalette(true)}>Buscar módulo <kbd>Ctrl K</kbd></button>
+            <button className="pill" onClick={() => setPalette(true)}>Buscar <kbd>Ctrl K</kbd></button>
             <ThemeSwitch />
+            <button className="pill" aria-pressed={sound} title="Sonidos de la interfaz" onClick={() => { setSound(!sound); setSoundState(!sound); }}>{sound ? "Sonido sí" : "Sonido no"}</button>
             <button className={`pill${paused ? " pill--warn" : " pill--ok"}`} aria-pressed={paused} title={paused ? "Reanudar todos los agentes" : "Pausar todos los agentes"}
               onClick={async () => { await run(api("/settings", { method: "PATCH", body: { agents_paused: !paused } }), paused ? "Agentes reanudados" : "Agentes en pausa: no se inicia ningún trabajo nuevo"); reload(); }}>
               <i />{paused ? "Agentes en pausa" : "Agentes activos"}
             </button>
           </div>
           <div key={`${space.id}:${route.slice(0, 2).join("/")}`} style={{ display: "contents" }}>
-            {current === "m" && mod ? <ModuleView mod={mod} />
+            {Studio ? <Studio />
+              : current === "m" && mod ? <ModuleView mod={mod} />
               : current === "c" && ctx.cat.categorias[route[1]] ? <Category k={route[1]} ov={ov.data} />
                 : current === "revision" ? <Review />
                   : current === "skills" ? <Skills />
@@ -258,24 +285,8 @@ function Heat({ data }: { data: Record<string, number> }) {
 
 function Home({ ov }: { ov?: Overview | null }) {
   const { cat } = useCat();
-  const { nav, run, notify, refreshJobs } = useApp();
   const plans = useData<any[]>(() => api("/dd/plans"), [ov]);
-  const [target, setTarget] = useState("");
-  const [order, setOrder] = useState("");
-  const [busy, setBusy] = useState(false);
   const byId = useMemo(() => Object.fromEntries(cat.modulos.map((m) => [m.id, m])), [cat]);
-  const picked = byId[target.trim().slice(0, 3).toUpperCase()];
-  const send = async () => {
-    if (!picked) return;
-    setBusy(true);
-    const res = await run(api<{ job: { id: string }; created: boolean }>("/dd/run", { body: { module: picked.id, action: "orden", inputs: { orden: order } } }));
-    setBusy(false);
-    if (!res) return;
-    notify(res.created ? `Orden enviada a ${picked.id}. El entregable aparecerá en su panel.` : "Ya había una orden igual en curso; no se duplicó.", res.created ? "ok" : "info");
-    setOrder("");
-    refreshJobs();
-    nav(`m/${picked.id}`);
-  };
   const next: { m: Mod; text: string; to: string }[] = [];
   for (const p of plans.data || []) if (p.estado === "waiting_approval" && byId[p.modulo]) next.push({ m: byId[p.modulo], text: `Aprobar: ${p.titulo}`, to: `m/${p.modulo}` });
   for (const m of cat.modulos) { const s = ov?.modulos[m.id]; if (s?.por_revisar) next.push({ m, text: `Revisar ${s.por_revisar} ${s.por_revisar === 1 ? "entregable" : "entregables"}`, to: `m/${m.id}/entregables` }); }
@@ -285,8 +296,8 @@ function Home({ ov }: { ov?: Overview | null }) {
     <div className="page">
       <section className="hero">
         <div>
-          <h1 className="hero__word">DOOMSDAY</h1>
-          <p className="hero__lead">Cien módulos en un solo tablero. Da la orden, revisa el resultado y aprueba lo que sale.</p>
+          <h1 className="hero__word">VISION</h1>
+          <p className="hero__lead">Jarvis conversa y coordina. Doomsday ejecuta con cien módulos. Tú apruebas lo que sale.</p>
           <div className="stats">
             <Stat label="Módulos en uso" value={<>{ov ? ov.activos : "–"} <small className="muted small">de 100</small></>} />
             <Stat label="Por revisar" value={ov?.por_revisar ?? "–"} />
@@ -314,19 +325,7 @@ function Home({ ov }: { ov?: Overview | null }) {
         </Panel>
         <Panel title="Actividad" note="Órdenes y entregables por día, últimas doce semanas.">{ov ? <Heat data={ov.actividad || {}} /> : null}</Panel>
       </div>
-      <Panel title="Dar una orden" note="Escribe poco: la skill del módulo aplica su método completo y deja el resultado como borrador en Revisión. Sin IA conectada, usa las herramientas de cada módulo: calculan con tus datos.">
-        <div className="order">
-          <div className="form">
-            <label className="field"><span className="field__label">Módulo</span>
-              <input className="input" list="dd-mods" placeholder="G04 Fábrica de fichas" value={target} onChange={(e) => setTarget(e.target.value)} />
-              <datalist id="dd-mods">{cat.modulos.map((m) => <option key={m.id} value={`${m.id} ${m.nombre}`} />)}</datalist>
-              {target && !picked && <span className="field__hint">Elige un módulo de la lista (empieza por su código, como G04).</span>}
-            </label>
-          </div>
-          <textarea className="input" aria-label="Orden" placeholder={picked ? `Qué necesitas de «${picked.nombre}»` : "Elige un módulo y escribe qué necesitas"} value={order} onChange={(e) => setOrder(e.target.value)} />
-          <div className="row"><Btn kind="primary" busy={busy} disabled={!picked || order.trim().length < 3} onClick={send}>Enviar orden</Btn>{picked && <Btn kind="ghost" onClick={() => nav(`m/${picked.id}`)}>Abrir el panel de {picked.id}</Btn>}</div>
-        </div>
-      </Panel>
+      <AskJarvis />
       <div className="grid grid--side">
         <Panel title="Los 20 mejores proyectos" note="Orden de la clasificación general del Laboratorio Estratégico. Las puntuaciones son preliminares: ningún ahorro está medido todavía.">
           <div className="modlist">{cat.top20.map((id, i) => <ModRow key={id} m={byId[id]} rank={i + 1} ov={ov?.modulos[id]} />)}</div>
@@ -339,6 +338,47 @@ function Home({ ov }: { ov?: Overview | null }) {
         </Panel>
       </div>
     </div>
+  );
+}
+
+/** Una sola caja para todo: Jarvis entiende la orden y maneja sus herramientas y los cien módulos. */
+function AskJarvis() {
+  const { space, run, nav, refreshJobs } = useApp();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [log, setLog] = useState<{ q: string; reply: string; job?: { id: string }; data?: any }[]>([]);
+  const send = async (q = text) => {
+    if (q.trim().length < 2) return;
+    setBusy(true);
+    const r = await run(api<any>("/assistant", { body: { space: space.id, text: q } }));
+    setBusy(false);
+    if (!r) return;
+    setLog((l) => [{ q, reply: r.reply, job: r.job, data: r.data }, ...l].slice(0, 4));
+    setText("");
+    refreshJobs();
+  };
+  return (
+    <Panel title="Pídeselo a Jarvis" actions={<Btn small kind="ghost" onClick={() => nav("comando")}>Abrir Jarvis con voz</Btn>}
+      note="Sin IA conectada entiende órdenes directas: «G02 calcula», «G04: ficha para…», «brief», «módulos de pauta», «busca leads de… en…», «anota…». Con IA conectada, dilo como quieras.">
+      <div className="order">
+        <textarea className="input" aria-label="Orden para Jarvis" placeholder="Qué necesitas" value={text} onChange={(e) => setText(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
+        <div className="row">
+          <Btn kind="primary" busy={busy} disabled={text.trim().length < 2} onClick={() => send()}>Enviar a Jarvis</Btn>
+          {["brief", "G02 calcula", "módulos de pauta", "ayuda"].map((x) => <Btn key={x} small onClick={() => send(x)}>{x}</Btn>)}
+        </div>
+        {log.map((m, i) => (
+          <div className="tres__doc" key={log.length - i}>
+            <h3>{m.q}</h3><p>{m.reply}</p>
+            <div className="row">
+              {m.data?.modulo && <Btn small onClick={() => nav(`m/${m.data.modulo}`)}>Abrir {m.data.modulo}</Btn>}
+              {(m.data?.modulos || []).slice(0, 4).map((id: string) => <Btn key={id} small onClick={() => nav(`m/${id}`)}>Abrir {id}</Btn>)}
+              {m.job && <Btn small onClick={() => nav("sistema")}>Ver el trabajo</Btn>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Panel>
   );
 }
 
@@ -401,15 +441,22 @@ function Palette({ onClose }: { onClose: () => void }) {
   const { cat } = useCat();
   const { nav } = useApp();
   const [q, setQ] = useState("");
-  const norm = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-  const hits = cat.modulos.filter((m) => !q.trim() || norm(`${m.id} ${m.nombre} ${m.problema} ${m.solucion} ${m.funciones.join(" ")}`).includes(norm(q.trim()))).slice(0, 12);
-  const go = (id: string) => { nav(`m/${id}`); onClose(); };
+  const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const has = (t: string) => !q.trim() || norm(t).includes(norm(q.trim()));
+  const mods = cat.modulos.filter((m) => has(`${m.id} ${m.nombre} ${m.problema} ${m.solucion} ${m.funciones.join(" ")}`)).slice(0, 8);
+  const studios = STUDIOS.filter(([, text]) => has(text)).slice(0, q.trim() ? 6 : 3);
+  const lib = useData<any[]>(() => (q.trim().length > 1 ? api("/library/search", { query: { q } }) : Promise.resolve([])), [q]);
+  const docs = (lib.data || []).slice(0, 6);
+  const go = (route: string) => { nav(route); onClose(); };
+  const first = studios[0] && q.trim() && norm(studios[0][1]).startsWith(norm(q.trim())) ? studios[0][0] : mods[0] ? `m/${mods[0].id}` : studios[0]?.[0] || (docs[0] ? `biblioteca/${docs[0].path.split("/").map(encodeURIComponent).join("/")}` : "");
   return (
-    <Modal title="Ir a un módulo" onClose={onClose}>
-      <input className="input" autoFocus placeholder="Código, nombre o lo que quieres resolver" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && hits[0]) go(hits[0].id); }} />
+    <Modal title="Ir a…" onClose={onClose}>
+      <input className="input" autoFocus placeholder="Escribe un módulo o un tema de la biblioteca" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && first) go(first); }} />
       <div className="palette">
-        {hits.map((m) => <button key={m.id} className="libitem" onClick={() => go(m.id)}><strong><span className="mid" style={lc(m.capa)}>{m.id}</span> {m.nombre}</strong><span>{m.solucion}</span></button>)}
-        {!hits.length && <p className="muted small">Ningún módulo coincide con «{q}».</p>}
+        {mods.map((m) => <button key={m.id} className="libitem" onClick={() => go(`m/${m.id}`)}><strong><span className="mid" style={lc(m.capa)}>{m.id}</span> {m.nombre}</strong><span>{m.solucion}</span></button>)}
+        {studios.map(([id, text]) => <button key={id} className="libitem" onClick={() => go(id)}><strong>{text}</strong><span>Estudio de Jarvis</span></button>)}
+        {docs.map((h) => <button key={h.path} className="libitem" onClick={() => go(`biblioteca/${h.path.split("/").map(encodeURIComponent).join("/")}`)}><strong>{h.title}</strong><span>Biblioteca · {h.collection}</span></button>)}
+        {!mods.length && !studios.length && !docs.length && <p className="muted small">Nada coincide con «{q}».</p>}
       </div>
     </Modal>
   );
@@ -430,7 +477,7 @@ function Guest() {
     <div className="dshell" style={{ gridTemplateColumns: "minmax(0, 1fr)" }}>
       <main className="dmain">
         <div className="dtop">
-          <a className="dbrand" href="#/" style={{ padding: 0, marginRight: "auto" }}><Mark /><strong>DOOMSDAY</strong><span>Portal de {space.name}</span></a>
+          <a className="dbrand" href="#/" style={{ padding: 0, marginRight: "auto" }}><Mark /><strong>VISION</strong><span>Portal de {space.name}</span></a>
           {boot.spaces.length > 1 && <Select value={space.id} onChange={setSpace} options={boot.spaces.map((s) => [s.id, s.name])} />}
           <ThemeSwitch />
           <button className="pill" onClick={async () => { await api("/logout", { method: "POST" }); location.reload(); }}>{boot.user.username} · salir</button>

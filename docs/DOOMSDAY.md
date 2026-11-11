@@ -1,17 +1,24 @@
-# Doomsday
+# Vision: Jarvis + Doomsday
 
-Aplicación aparte dentro de este repositorio: los 100 módulos del «Laboratorio Estratégico: 100 oportunidades de software», cada uno con panel propio.
-Proceso, puerto (8766) y base de datos (`doomsday_home/`) propios. Reutiliza el motor de Jarvis; Jarvis no la contiene.
+Vision es la fusión de Jarvis y Doomsday en una sola aplicación: un proceso, un puerto (8765), una base de datos y una interfaz. Jarvis conversa y coordina (voz, chat, Telegram,
+horarios) y conserva sus estudios; Doomsday aporta los 100 módulos del «Laboratorio Estratégico». No hay nada que arrancar aparte.
 
 ## Arrancar
 ```bash
-./scripts/start_doomsday.sh [--app]     # Windows: START_DOOMSDAY.cmd
-cd backend && ../.venv/bin/python -m pytest tests/test_doomsday.py tests/test_doomsday_integrations.py tests/test_doomsday_tools2.py -q
-cd frontend && npm run build            # compila Jarvis (dist) y Doomsday (dist-doomsday)
-node frontend/e2e/doomsday.cjs          # recorrido en navegador contra una instancia LIMPIA en marcha
+./scripts/start.sh [--app]              # o scripts/start_vision.sh · Windows: START_VISION.cmd o START_JARVIS.cmd
+cd backend && ../.venv/bin/python -m pytest tests -q
+cd frontend && npm run build
+node frontend/e2e/smoke.cjs             # recorrido de Jarvis (instancia LIMPIA en marcha)
+node frontend/e2e/doomsday.cjs          # recorrido de los módulos (otra instancia LIMPIA)
 ```
-Instancia limpia: `DOOMSDAY_HOME=<carpeta vacía> JARVIS_SECRETS_BACKEND=file JARVIS_SECRETS_FILE=<ruta> JARVIS_NO_BROWSER=1 python -m doomsday.launch`.
-Variables: `DOOMSDAY_HOME`, `DOOMSDAY_PORT`.
+
+## Cómo se unieron
+- **Datos**: una sola base. Las cuatro capas de Doomsday reutilizan los espacios que Jarvis ya tenga (tu «Personal» es la capa personal; tu negocio, la capa interna) y solo se crean las que falten.
+  Si existía `doomsday_home/` de cuando corría aparte, el primer arranque importa sus registros, entregables, conexiones, archivos y skills sin pisar nada; la carpeta queda intacta.
+- **Jarvis maneja Doomsday** (`bridge.py`): «G02 calcula» ejecuta la herramienta de un módulo, «G04: …» le da una orden, «brief» resume lo que exige decisión, «módulos de pauta» busca. Con IA conectada, en lenguaje libre.
+  Vale por texto, por voz, por Telegram y en los agentes con horario. Son acciones internas: nada externo sale por el asistente.
+- **Interfaz**: tablero de Vision, «Hablar con Jarvis» (el núcleo con voz), capas, las diez categorías y los doce estudios de Jarvis en el mismo menú. El buscador (Ctrl K) encuentra módulos, estudios y guías de la biblioteca.
+  El rol «equipo» conserva la vista de trabajo de Jarvis; el rol «cliente» ve solo la revisión de su espacio.
 
 ## Mapa
 - `backend/doomsday/catalog.py` los 100 módulos (declarativo): datos, herramientas, acciones, capa, autonomía.
