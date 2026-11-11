@@ -18,7 +18,7 @@ echo "Instalando dependencias de Python (backend/requirements.lock) …"
 .venv/bin/python -m pip install --disable-pip-version-check -q -r backend/requirements.lock
 .venv/bin/python -m pip install --disable-pip-version-check -q -r backend/requirements-desktop.txt || echo "Ventana de aplicación no disponible: Jarvis se abrirá en el navegador."
 
-if [ "${1:-}" = "rebuild" ] || [ ! -f frontend/dist/index.html ]; then
+if [ "${1:-}" = "rebuild" ] || [ ! -f frontend/dist/index.html ] || [ ! -f frontend/dist-doomsday/doomsday.html ]; then
   if ! command -v node >/dev/null 2>&1 || ! node scripts/check_node.cjs; then
     echo "[FALTA] Node.js 18 o superior, necesario una sola vez para compilar la interfaz: https://nodejs.org/"
     exit 1

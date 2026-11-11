@@ -29,6 +29,10 @@ Para una instancia limpia de pruebas: `JARVIS_HOME=<carpeta vacía> JARVIS_SECRE
 Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`RecordsPanel` genera CRUD desde el esquema,
 `DeliverableView`, `shared`, `ui`, `Core`), `views/` (una por zona de navegación).
 
+## Doomsday
+App aparte sobre este motor (`backend/doomsday`, `frontend/src/doomsday`, puerto 8766, datos en `doomsday_home/`): 100 módulos declarados en `catalog.py`, skills en `skills/*.md`, cálculos en `tools.py`. Guía: `docs/DOOMSDAY.md`.
+`./scripts/start_doomsday.sh` · `pytest tests/test_doomsday.py` · `node frontend/e2e/doomsday.cjs`. Cumple las mismas reglas de abajo; no se añade lógica de Doomsday dentro de `jarvis/`.
+
 ## Reglas que no se rompen
 - Todo dato lleva `space_id`; nunca se lee ni enlaza entre espacios. Caché separada por espacio.
 - Secretos solo en `secrets_store`; jamás en SQLite, logs, respuestas de la API, frontend o respaldos.

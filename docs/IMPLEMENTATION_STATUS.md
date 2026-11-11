@@ -122,3 +122,18 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 - Escucha permanente fuera de la pantalla de Comando (manos libres se activa a mano y se detiene al salir) y clonación de voz.
 - Aprobaciones por WhatsApp o ntfy (solo Telegram permite responder).
 - Sincronización entre equipos y cifrado HTTPS propio (en red o servidor hay que ponerlo detrás de VPN o proxy).
+
+
+## Doomsday (2026-11-11)
+Aplicación aparte (`backend/doomsday`, `frontend/src/doomsday`, puerto 8766, datos en `doomsday_home/`). Detalle en `docs/DOOMSDAY.md`.
+
+**Probado** (`tests/test_doomsday.py`, 15 pruebas; `frontend/e2e/doomsday.cjs`, 13 pasos en navegador):
+- Catálogo de 100 módulos en 10 categorías y 4 capas aisladas; los 100 paneles abren.
+- 100 skills integradas; edición, historial, restauración e importación (.md / .zip).
+- Herramientas deterministas: utilidad COD, equilibrio, ofertas, escenarios, conciliación, guardián de pauta, cumplimiento, PII, embudo, churn, hábitos, suscripciones, UTM, salud de tienda (con bloqueo SSRF y ronda horaria).
+- Órdenes `dd_run` con proveedor simulado: prompt con skill, fuentes entre `<fuente>`, entregable revisable, registros emitidos, revisión automática de cumplimiento, salida malformada rechazada, espera sin IA o entrega solo evidencia.
+- Bóveda: el secreto no entra en SQLite ni en auditoría. Lectura de pedidos de Shopify sin duplicados.
+
+**No probado con cuentas reales:** ninguna orden se ha ejecutado con un modelo real (calidad de las skills sin evaluar); Shopify, Meta y el resto de apps solo con transporte simulado; `START_DOOMSDAY.cmd` y la ventana `--app` sin ejecutar.
+
+**No construido todavía (lo que el PDF resuelve con servicios externos):** no hay conexión directa con Dropi, TikTok Ads, WhatsApp Business ni Higgsfield (esos módulos trabajan con registros, CSV y el conector universal); el gasto de Meta entra por CSV, no por sincronización; el guardián de pauta evalúa y propone, no pausa en la plataforma; M06 genera guiones y nombres, no los videos; C04 propone cortes, no recorta; P04 no graba audio; el monitor de tiendas lee la página pública, no hace compra de prueba; G04 publica solo título y descripción en borrador (sin secciones del tema ni imágenes); sin portal con acceso para clientes ni cobros o firma.

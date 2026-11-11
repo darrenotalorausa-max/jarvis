@@ -18,9 +18,12 @@ def _port_free(host: str, port: int) -> bool:
         return s.connect_ex((host, port)) != 0
 
 
+WINDOW_TITLE = "Jarvis OS"  # Doomsday lo cambia al reutilizar la ventana de aplicación
+
+
 def _window(url: str) -> None:
     import webview
-    webview.create_window("Jarvis OS", url, width=1480, height=920, min_size=(980, 640), background_color="#07090c")
+    webview.create_window(WINDOW_TITLE, url, width=1480, height=920, min_size=(980, 640), background_color="#07090c")
     webview.start()
 
 
