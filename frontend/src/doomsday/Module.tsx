@@ -2,22 +2,24 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { api, fmtDate, fmtNum, type Deliverable, type Rec } from "../api";
 import { useApp, useData } from "../store";
 import { Badge, Btn, Check, Empty, ErrorBox, FieldRow, Panel, Select, Skeleton, Stat, Tabs, Text, useConfirm } from "../components/ui";
-import { Needs, useRecords } from "../components/shared";
+import { Needs, UploadButton, useFiles, useRecords } from "../components/shared";
 import { RecordsPanel } from "../components/RecordsPanel";
 import { useCat, type Action, type FieldSpec, type Mod, type Tool } from "./App";
 
 type ToolResult = { titulo: string; resumen: string; metricas: { label: string; valor: any; tono?: "ok" | "bad" | "amber" | null }[]; tablas: { titulo: string; columnas: string[]; filas: any[][] }[]; alertas: string[]; texto?: string; mapa?: Record<string, string> };
 type Tab = "trabajar" | "datos" | "entregables" | "skill";
 
-const CONN_LABEL: Record<string, string> = { shopify: "Shopify (Admin API)", meta: "Meta Ads", gmail: "Gmail", whatsapp: "WhatsApp Business", higgsfield: "Higgsfield (imagen y video)" };
+const CONN_LABEL: Record<string, string> = { shopify: "Shopify (Admin API)", meta: "Meta Ads", tiktok: "TikTok Ads", gmail: "Gmail", whatsapp: "WhatsApp Business (Cloud API)", dropi: "la exportación CSV de tu operador logístico (Dropi u otro)", video: "una conexión de IA que genere video (OpenAI, Gemini o fal.ai, en Conexiones de IA)" };
 
 export function ModuleView({ mod }: { mod: Mod }) {
   const { cat } = useCat();
   const { space, setSpace, route, nav } = useApp();
+  // Un módulo trabaja en cualquier espacio de su capa (por ejemplo, el de cada cliente); si estás en otra capa, cambia a la suya.
+  const inLayer = space.kind === cat.capas[mod.capa].tipo;
   const target = cat.espacios[mod.capa];
-  useEffect(() => { if (space.id !== target) setSpace(target); }, [space.id, target]);
+  useEffect(() => { if (!inLayer) setSpace(target); }, [inLayer, target]);
   const tab = (["trabajar", "datos", "entregables", "skill"].includes(route[2]) ? route[2] : "trabajar") as Tab;
-  if (space.id !== target) return <Skeleton />;
+  if (!inLayer) return <Skeleton />;
   const tabs: [Tab, string][] = [["trabajar", "Trabajar"], ...(mod.kinds.length ? [["datos", "Datos"] as [Tab, string]] : []), ["entregables", "Entregables"], ["skill", "Skill"]];
   return (
     <div className="page">
@@ -90,12 +92,12 @@ function Fields({ campos, values, set }: { campos: FieldSpec[]; values: Record<s
 }
 
 function ActionForm({ mod, act, primary }: { mod: Mod; act: Action; primary?: boolean }) {
-  const { run, notify, refreshJobs } = useApp();
+  const { run, notify, refreshJobs, space } = useApp();
   const [values, setValues] = useState<Record<string, any>>({});
   const [busy, setBusy] = useState(false);
   const send = async () => {
     setBusy(true);
-    const res = await run(api<{ job: { id: string; status_label: string }; created: boolean }>("/dd/run", { body: { module: mod.id, action: act.id, inputs: values } }));
+    const res = await run(api<{ job: { id: string; status_label: string }; created: boolean }>("/dd/run", { body: { module: mod.id, action: act.id, inputs: values, space: space.id } }));
     setBusy(false);
     if (!res) return;
     notify(res.created ? `En marcha: ${act.label}. Verás el resultado abajo, en Actividad.` : "Ya había una orden igual en curso; no se duplicó.", res.created ? "ok" : "info");
@@ -113,13 +115,13 @@ function ActionForm({ mod, act, primary }: { mod: Mod; act: Action; primary?: bo
 }
 
 function ToolPanel({ mod, tool }: { mod: Mod; tool: Tool }) {
-  const { run, doneTick } = useApp();
+  const { run, doneTick, space } = useApp();
   const [values, setValues] = useState<Record<string, any>>({});
   const [res, setRes] = useState<ToolResult | null>(null);
   const [busy, setBusy] = useState(false);
   const calc = async (silent = false) => {
     setBusy(true);
-    const p = api<ToolResult>(`/dd/tools/${tool.id}`, { body: { module: mod.id, inputs: values } });
+    const p = api<ToolResult>(`/dd/tools/${tool.id}`, { body: { module: mod.id, inputs: values, space: space.id } });
     const r = silent ? await p.catch(() => undefined) : await run(p);
     setBusy(false);
     if (r) setRes(r);
@@ -161,7 +163,7 @@ export function ToolView({ res }: { res: ToolResult }) {
 
 function Activity({ mod }: { mod: Mod }) {
   const { jobs, nav, run, refreshJobs } = useApp();
-  const list = jobs.filter((j) => j.type === "dd_run" && j.params?.module === mod.id).slice(0, 8);
+  const list = jobs.filter((j) => ["dd_run", "dd_clip", "media_generate"].includes(j.type) && j.params?.module === mod.id).slice(0, 8);
   if (!list.length) return null;
   const act = async (id: string, what: "cancel" | "retry") => { await run(api(`/jobs/${id}/${what}`, { method: "POST" })); refreshJobs(); };
   return (
@@ -236,8 +238,14 @@ function Widget({ mod }: { mod: Mod }) {
   if (mod.widget === "teleprompter") return <Teleprompter />;
   if (mod.widget === "boveda") return <Vault />;
   if (mod.widget === "repaso") return <Flashcards />;
-  if (mod.widget === "sync") return <ShopifySync />;
+  if (mod.widget === "sync") return <><ShopifySync /><AdsSync /><LogisticsImport /></>;
   if (mod.widget === "publicar") return <ShopifyDraft />;
+  if (mod.widget === "pausa") return <><AdsSync /><AdsPause /></>;
+  if (mod.widget === "whatsapp") return <WhatsApp />;
+  if (mod.widget === "media") return <CreativeMedia />;
+  if (mod.widget === "clip") return <ClipCutter />;
+  if (mod.widget === "voz") return <VoiceCapture />;
+  if (mod.widget === "portal") return <Portal />;
   if (mod.widget === "skills") return <Panel title="Repositorio de skills"><p className="muted">Las 100 skills, su origen y su versión están en <a href="#/skills">Skills</a>. Desde ahí importas las tuyas en bloque.</p></Panel>;
   return null;
 }
@@ -360,22 +368,248 @@ function ShopifySync() {
   );
 }
 
+function Approve({ job }: { job: any }) {
+  const { nav } = useApp();
+  if (!job) return null;
+  return <p className="note note--amber">Petición preparada y en espera. Nada sale hasta que la apruebes: <button className="linkbtn" onClick={() => nav("apps")}>revisa la petición exacta en Apps conectadas</button>.</p>;
+}
+
 function ShopifyDraft() {
-  const { space, run, nav } = useApp();
+  const { space, run, doneTick } = useApp();
   const [conn, setConn] = useState("");
   const [v, setV] = useState<Record<string, any>>({});
-  const [done, setDone] = useState(false);
-  const go = async () => {
-    const r = await run(api<any>(`/apps/${conn}/request`, { body: { space: space.id, action: "crear_producto_borrador", variables: { titulo: v.titulo, descripcion: v.descripcion } } }));
-    if (r) setDone(true);
+  const [res, setRes] = useState<any>(null);
+  const dels = useData<Deliverable[]>(() => api("/deliverables", { query: { space: space.id, kind: "dd", status: "aprobado" } }), [space.id, doneTick]);
+  const fichas = (dels.data || []).filter((d) => d.ref_id === "G04");
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const go = async () => { const r = await run(api<any>("/dd/publish/shopify", { body: { ...v, connection_id: conn, space: space.id } })); if (r) setRes(r); };
+  return (
+    <Panel title="Publicar la ficha aprobada como borrador en Shopify" note="Crea el producto en estado borrador (no visible en la tienda) con todas las secciones de la ficha como descripción, precio, imagen y título y descripción para buscadores. Las secciones del tema se montan en el editor de Shopify.">
+      {!fichas.length ? <p className="muted">Aún no hay ninguna ficha aprobada. Genera una ficha y apruébala en Revisión; entonces aparece aquí.</p> : (
+        <ConnPicker value={conn} onChange={setConn}>
+          <FieldRow label="Ficha aprobada"><Select value={v.deliverable_id ?? ""} onChange={set("deliverable_id")} options={fichas.map((d) => [d.id, `${d.title} (v${d.current_version})`])} empty="Elige una ficha" /></FieldRow>
+          <FieldRow label="Precio de venta"><Text type="number" value={v.precio} onChange={set("precio")} /></FieldRow>
+          <FieldRow label="Imagen principal (URL https, opcional)"><Text type="url" value={v.imagen} onChange={set("imagen")} placeholder="https://" /></FieldRow>
+        </ConnPicker>
+      )}
+      <div className="row row--end"><Btn kind="primary" disabled={!conn || !v.deliverable_id || !v.precio} onClick={go}>Preparar borrador en Shopify</Btn></div>
+      {res && <p className="note">{res.secciones} secciones y {res.caracteres} caracteres de descripción.</p>}
+      <Approve job={res?.job} />
+    </Panel>
+  );
+}
+
+function AdsSync() {
+  const { run, space } = useApp();
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({ plataforma: "meta", dias: 7 });
+  const [res, setRes] = useState<any>(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const go = async () => { setBusy(true); const r = await run(api<any>("/dd/sync/ads", { body: { ...v, connection_id: conn, space: space.id } })); setBusy(false); if (r) setRes(r); };
+  return (
+    <Panel title="Traer gasto de pauta (Meta y TikTok)" note="Solo lectura. Trae el gasto diario por anuncio y actualiza lo ya cargado. Si el nombre de un producto aparece en el de la campaña, se asigna solo. La plantilla de TikTok no se ha probado todavía con una cuenta real.">
+      <AppPicker value={conn} onChange={setConn} what="Meta Ads o TikTok Ads">
+        <FieldRow label="Plataforma"><Select value={v.plataforma} onChange={set("plataforma")} options={[["meta", "Meta"], ["tiktok", "TikTok"]]} /></FieldRow>
+        <FieldRow label={v.plataforma === "meta" ? "ID de la cuenta publicitaria" : "ID del anunciante"}><Text value={v.cuenta} onChange={set("cuenta")} placeholder={v.plataforma === "meta" ? "act_123456789" : "7001234567890"} /></FieldRow>
+        <FieldRow label="Días hacia atrás (1 a 30)"><Text type="number" value={v.dias} onChange={set("dias")} /></FieldRow>
+      </AppPicker>
+      <div className="row row--end"><Btn kind="primary" busy={busy} disabled={!conn || !v.cuenta} onClick={go}>Traer gasto</Btn></div>
+      {res && <p className="note">{res.filas} filas del {res.periodo}: {res.nuevos} nuevas, {res.actualizados} actualizadas. {res.nota}</p>}
+    </Panel>
+  );
+}
+
+function AdsPause() {
+  const { run, space } = useApp();
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({ plataforma: "meta" });
+  const [res, setRes] = useState<any>(null);
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const go = async (reanudar: boolean) => { const r = await run(api<any>("/dd/ads/pause", { body: { ...v, connection_id: conn, reanudar, space: space.id } })); if (r) setRes(r); };
+  return (
+    <Panel title="Pausar en la plataforma" note="Usa el «ID de campaña» que muestra la evaluación de reglas de abajo. Pausar es reversible, pero modifica tu cuenta: se ejecuta solo cuando apruebas la petición exacta. Subir presupuesto nunca se hace desde aquí.">
+      <AppPicker value={conn} onChange={setConn} what="Meta Ads o TikTok Ads">
+        <FieldRow label="Plataforma"><Select value={v.plataforma} onChange={set("plataforma")} options={[["meta", "Meta"], ["tiktok", "TikTok"]]} /></FieldRow>
+        <FieldRow label={v.plataforma === "meta" ? "ID de campaña, conjunto o anuncio" : "ID del anuncio"}><Text value={v.objeto_id} onChange={set("objeto_id")} /></FieldRow>
+        {v.plataforma === "tiktok" && <FieldRow label="ID del anunciante"><Text value={v.cuenta} onChange={set("cuenta")} /></FieldRow>}
+        <FieldRow label="Nombre (para reconocerla al aprobar)"><Text value={v.nombre} onChange={set("nombre")} /></FieldRow>
+      </AppPicker>
+      <div className="row row--end">{v.plataforma === "meta" && <Btn disabled={!conn || !v.objeto_id} onClick={() => go(true)}>Preparar reanudación</Btn>}<Btn kind="primary" disabled={!conn || !v.objeto_id} onClick={() => go(false)}>Preparar pausa</Btn></div>
+      <Approve job={res?.job} />
+    </Panel>
+  );
+}
+
+function AppPicker({ value, onChange, what, children }: { value: string; onChange: (v: string) => void; what: string; children?: ReactNode }) {
+  const { nav } = useApp();
+  const conns = useApiConns();
+  if (conns.data && !conns.data.length) return <p className="muted">No hay ninguna app conectada. Añade {what} con su plantilla en <button className="linkbtn" onClick={() => nav("apps")}>Apps conectadas</button>.</p>;
+  return <div className="form"><FieldRow label={`Conexión de ${what}`}><Select value={value} onChange={onChange} options={(conns.data || []).map((c) => [c.id, c.name])} empty="Elige una conexión" /></FieldRow>{children}</div>;
+}
+
+function LogisticsImport() {
+  const { run, space, notify } = useApp();
+  const [file, setFile] = useState<File | null>(null);
+  const [res, setRes] = useState<any>(null);
+  const send = async (commit: boolean) => {
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    form.append("space", space.id);
+    if (commit) form.append("commit", "1");
+    const r = await run(api<any>("/dd/import/logistica", { form }));
+    if (r) { setRes(r); if (commit) notify("Pedidos, fletes y liquidaciones actualizados.", "ok"); }
   };
   return (
-    <Panel title="Publicar como borrador en Shopify" note="Crea el producto en estado borrador: no queda visible en la tienda. Como modifica un sistema externo, queda esperando tu aprobación con la petición exacta en Apps conectadas.">
-      <ConnPicker value={conn} onChange={setConn}>
-        <FieldRow label="Título del producto"><Text value={v.titulo} onChange={(x) => setV((s) => ({ ...s, titulo: x }))} /></FieldRow>
-        <FieldRow label="Descripción (HTML de la ficha aprobada)" wide><Text area rows={5} value={v.descripcion} onChange={(x) => setV((s) => ({ ...s, descripcion: x }))} /></FieldRow>
-      </ConnPicker>
-      <div className="row row--end">{done && <Btn kind="amber" onClick={() => nav("apps")}>Revisar y aprobar en Apps conectadas</Btn>}<Btn kind="primary" disabled={!conn || !v.titulo} onClick={go}>Solicitar publicación en borrador</Btn></div>
+    <Panel title="Importar la exportación de tu operador logístico (Dropi u otro)" note="Dropi no publica una API que se pueda usar aquí, así que sus datos entran con su exportación de pedidos en CSV. Reconoce las columnas por su nombre, actualiza el estado de entrega, los fletes y el costo de cada pedido, y crea las liquidaciones. Primero muestra qué haría; no guarda nada hasta que confirmes.">
+      <div className="form"><FieldRow label="Archivo CSV de pedidos"><input className="input" type="file" accept=".csv,.txt" onChange={(e) => { setFile(e.target.files?.[0] || null); setRes(null); }} /></FieldRow></div>
+      <div className="row row--end"><Btn disabled={!file} onClick={() => send(false)}>Revisar sin guardar</Btn><Btn kind="primary" disabled={!res || res.guardado} onClick={() => send(true)}>Guardar cambios</Btn></div>
+      {res && (
+        <div className="tres">
+          <div className="stats"><Stat label="Filas" value={res.filas} /><Stat label="Pedidos actualizados" value={res.actualizados} /><Stat label="Pedidos nuevos" value={res.nuevos} />
+            <Stat label="Liquidaciones" value={res.liquidaciones} /><Stat label="Estado no reconocido" value={res.sin_estado} tone={res.sin_estado ? "amber" : undefined} /></div>
+          <p className="small muted">Columnas usadas: {Object.entries(res.columnas).map(([k, c]) => `${c} → ${k}`).join("; ")}.{res.ignoradas.length ? ` Ignoradas: ${res.ignoradas.join(", ")}.` : ""}</p>
+          {res.guardado ? <p className="small">Guardado.</p> : <p className="tres__alert">Vista previa: aún no se ha guardado nada.</p>}
+        </div>
+      )}
+    </Panel>
+  );
+}
+
+function WhatsApp() {
+  const { run, space } = useApp();
+  const msgs = useRecords("dd_mensaje");
+  const [conn, setConn] = useState("");
+  const [v, setV] = useState<Record<string, any>>({});
+  const [res, setRes] = useState<any>(null);
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const listos = (msgs.data || []).filter((m) => m.status === "borrador_listo" && m.data.borrador);
+  const go = async () => { const r = await run(api<any>("/dd/whatsapp/send", { body: { ...v, connection_id: conn, space: space.id } })); if (r) setRes(r); };
+  return (
+    <Panel title="Enviar por WhatsApp" note="Envía un mensaje por la API de WhatsApp Business cuando apruebas la petición exacta. Recibir mensajes de forma automática exige una dirección pública que WhatsApp pueda llamar, y Doomsday corre en tu equipo: los mensajes entrantes se pegan o importan en «Datos». Fuera de la ventana de 24 horas WhatsApp solo admite plantillas aprobadas.">
+      <AppPicker value={conn} onChange={setConn} what="WhatsApp Business">
+        <FieldRow label="ID del número de WhatsApp Business"><Text value={v.numero_id} onChange={set("numero_id")} /></FieldRow>
+        <FieldRow label="Teléfono del destinatario (con código de país)"><Text value={v.telefono} onChange={set("telefono")} placeholder="57 300 123 4567" /></FieldRow>
+        {listos.length > 0 && <FieldRow label="Usar un borrador listo"><Select value={v.record_id ?? ""} onChange={(id) => { const m = listos.find((x) => x.id === id); setV((s) => ({ ...s, record_id: id, mensaje: m?.data.borrador || s.mensaje })); }}
+          options={listos.map((m) => [m.id, `${m.title} · ${String(m.data.borrador).slice(0, 40)}`])} empty="—" /></FieldRow>}
+        <FieldRow label="Mensaje" wide><Text area rows={4} value={v.mensaje} onChange={set("mensaje")} /></FieldRow>
+      </AppPicker>
+      <div className="row row--end"><Btn kind="primary" disabled={!conn || !v.numero_id || !v.telefono || !v.mensaje} onClick={go}>Preparar envío</Btn></div>
+      <Approve job={res?.job} />
+    </Panel>
+  );
+}
+
+function CreativeMedia() {
+  const { run, refreshJobs, notify } = useApp();
+  const list = useRecords("dd_creativo");
+  const [secs, setSecs] = useState("8");
+  const ok = (list.data || []).filter((c) => ["aprobado", "publicado", "ganador"].includes(c.status));
+  const go = async (c: Rec, kind: "video" | "image") => {
+    const r = await run(api<any>(`/dd/creativos/${c.id}/generar`, { body: { kind, seconds: Number(secs) || 8 } }));
+    if (r) { notify(r.created ? "Producción en marcha. El archivo aparecerá en Actividad." : "Ya había una producción igual en curso.", r.created ? "ok" : "info"); refreshJobs(); }
+  };
+  return (
+    <Panel title="Producir creativos aprobados" note="Genera el video o la imagen vertical del creativo con tu conexión de IA de video o imagen (OpenAI, Gemini o fal.ai). Gasta saldo de esa conexión: solo se hace cuando pulsas, dentro del presupuesto que le pusiste. Higgsfield no tiene conexión directa aquí.">
+      {!ok.length ? <p className="muted">No hay creativos aprobados. Genera variaciones, revísalas en «Datos» y cambia a «aprobado» las que quieras producir.</p> : (
+        <>
+          <div className="form"><FieldRow label="Duración del video (2 a 20 s)"><Text type="number" value={secs} onChange={setSecs} /></FieldRow></div>
+          <div className="tablewrap" style={{ marginTop: "var(--i3)" }}><table>
+            <thead><tr><th>Creativo</th><th>Hook</th><th>Formato</th><th /></tr></thead>
+            <tbody>{ok.slice(0, 40).map((c) => (
+              <tr key={c.id}><td className="mono">{c.title}</td><td className="wrap">{c.data.hook || "—"}</td><td>{c.data.formato || "—"}</td>
+                <td className="right"><div className="row" style={{ justifyContent: "flex-end" }}><Btn small onClick={() => go(c, "image")}>Imagen</Btn><Btn small kind="primary" onClick={() => go(c, "video")}>Video</Btn></div></td></tr>
+            ))}</tbody>
+          </table></div>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function ClipCutter() {
+  const { run, space, refreshJobs, notify } = useApp();
+  const vids = useFiles();
+  const [v, setV] = useState<Record<string, any>>({ vertical: true });
+  const set = (k: string) => (x: any) => setV((s) => ({ ...s, [k]: x }));
+  const list = (vids.data || []).filter((f) => /\.(mp4|mov|mkv|webm|m4v)$/i.test(f.name) && f.origin === "upload");
+  const go = async () => {
+    const r = await run(api<any>("/dd/clip", { body: { ...v, space: space.id } }));
+    if (r) { notify(r.created ? "Recorte en marcha. El clip aparecerá en Actividad." : "Ya había un recorte igual en curso.", r.created ? "ok" : "info"); refreshJobs(); }
+  };
+  return (
+    <Panel title="Recortar un clip" actions={<UploadButton accept="video/*" onDone={() => vids.reload()}>Subir video</UploadButton>}
+      note="Recorta el tramo con FFmpeg en tu equipo, sin IA ni servicios externos. Con «vertical» lo deja en 9:16 centrado. Para subtítulos y reencuadre fino usa el Editor audiovisual de Jarvis.">
+      <div className="form">
+        <FieldRow label="Video"><Select value={v.file_id ?? ""} onChange={set("file_id")} options={list.map((f) => [f.id, f.name])} empty={list.length ? "Elige un video" : "Sube un video primero"} /></FieldRow>
+        <FieldRow label="Inicio (segundos o mm:ss)"><Text value={v.inicio} onChange={set("inicio")} placeholder="1:05" /></FieldRow>
+        <FieldRow label="Fin (segundos o mm:ss)"><Text value={v.fin} onChange={set("fin")} placeholder="1:42" /></FieldRow>
+        <FieldRow label="Título del clip"><Text value={v.titulo} onChange={set("titulo")} /></FieldRow>
+        <FieldRow label=""><Check checked={!!v.vertical} onChange={set("vertical")}>Vertical 9:16</Check></FieldRow>
+      </div>
+      <div className="row row--end"><Btn kind="primary" disabled={!v.file_id || !v.inicio || !v.fin} onClick={go}>Recortar</Btn></div>
+    </Panel>
+  );
+}
+
+function VoiceCapture() {
+  const { run, space, notify } = useApp();
+  const [state, setState] = useState<"idle" | "rec" | "busy">("idle");
+  const [text, setText] = useState("");
+  const rec = useRef<MediaRecorder | null>(null);
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const chunks: Blob[] = [];
+      const mr = new MediaRecorder(stream);
+      mr.ondataavailable = (e) => chunks.push(e.data);
+      mr.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setState("busy");
+        const form = new FormData();
+        form.append("space", space.id);
+        form.append("audio", new Blob(chunks, { type: mr.mimeType || "audio/webm" }), "nota.webm");
+        const r = await run(api<{ text: string }>("/voice/transcribe", { form }));
+        setState("idle");
+        if (r?.text) setText((t) => (t ? `${t}\n${r.text}` : r.text));
+      };
+      rec.current = mr;
+      mr.start();
+      setState("rec");
+    } catch { notify("No se pudo usar el micrófono. Concede el permiso en el navegador.", "error"); }
+  };
+  const save = async () => {
+    const r = await run(api("/records", { body: { space: space.id, kind: "dd_nota", title: text.trim().slice(0, 80), data: { tipo: "nota", texto: text.trim(), fecha: new Date().toISOString().slice(0, 10) } } }), "Captura guardada. Usa «Clasificar y enrutar capturas» para ordenarlas.");
+    if (r) setText("");
+  };
+  return (
+    <Panel title="Grabar una nota de voz" note="El audio se transcribe con tu conexión de transcripción (o el modelo local si lo instalaste) y se borra al terminar; solo queda el texto. Sin conexión de transcripción, escribe o dicta con el teclado del sistema.">
+      <div className="row">
+        {state === "rec" ? <Btn kind="danger" onClick={() => rec.current?.stop()}>Detener y transcribir</Btn> : <Btn kind="primary" busy={state === "busy"} onClick={start}>Grabar</Btn>}
+        {state === "rec" && <Badge value="running" text="Grabando" />}
+      </div>
+      <div className="form" style={{ marginTop: "var(--i3)" }}><FieldRow label="Texto capturado" wide><Text area rows={4} value={text} onChange={setText} /></FieldRow></div>
+      <div className="row row--end"><Btn disabled={text.trim().length < 3} onClick={save}>Guardar captura</Btn></div>
+    </Panel>
+  );
+}
+
+function Portal() {
+  const { run, reload, setSpace, nav } = useApp();
+  const list = useData<any[]>(() => api("/dd/clients"), []);
+  const [name, setName] = useState("");
+  const add = async () => { const r = await run(api<any>("/dd/clients", { body: { nombre: name } }), "Espacio del cliente creado."); if (r) { setName(""); list.reload(); await reload(); } };
+  return (
+    <Panel title="Portal por cliente" note="Cada cliente tiene su propio espacio: sus entregas y reportes no se mezclan con los de otro. Para darle acceso, crea en «Trabajos, uso y respaldo» un usuario con rol «cliente» asignado a su espacio; al entrar verá solo la revisión de sus entregables y podrá comentar. El acceso desde fuera de tu equipo exige activar el acceso en red con código (ver README). No incluye cobros ni firma electrónica.">
+      <div className="form"><FieldRow label="Nombre del cliente"><Text value={name} onChange={setName} /></FieldRow></div>
+      <div className="row row--end"><Btn onClick={() => nav("sistema")}>Usuarios y acceso</Btn><Btn kind="primary" disabled={name.trim().length < 2} onClick={add}>Crear espacio del cliente</Btn></div>
+      {list.data && (
+        <div className="tablewrap" style={{ marginTop: "var(--i3)" }}><table>
+          <thead><tr><th>Cliente</th><th>Entregables</th><th /></tr></thead>
+          <tbody>{list.data.map((c) => <tr key={c.id}><td>{c.name}</td><td>{c.entregables}</td><td className="right"><Btn small onClick={async () => { await reload(); setSpace(c.id); }}>Trabajar en este espacio</Btn></td></tr>)}</tbody>
+        </table></div>
+      )}
     </Panel>
   );
 }

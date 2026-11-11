@@ -4,10 +4,12 @@ Cada herramienta devuelve {resumen, metricas, tablas, alertas}. Si faltan datos 
 Las acciones de los módulos pueden adjuntar este resultado al modelo como evidencia para que lo interprete.
 """
 from __future__ import annotations
+import json
 import re
 import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from urllib.parse import urlsplit
 
 from jarvis import db, records, router, security, webfetch
 
@@ -240,12 +242,13 @@ def guardian_pauta(space_id, inp):
     spend = [s for s in recs(space_id, "dd_gasto_pauta") if (s["data"].get("fecha") or "") >= desde]
     if not spend:
         return {"resumen": f"No hay gasto de pauta registrado en los últimos {dias} días. " + SIN_DATOS}
-    agg = defaultdict(lambda: defaultdict(float))
+    agg: dict = defaultdict(lambda: defaultdict(float))
     for s in spend:
         d = s["data"]
         k = (d.get("plataforma") or "", d.get("producto") or "", d.get("campana") or "(sin campaña)")
         agg[k]["gasto"] += n(d.get("gasto"))
         agg[k]["compras"] += n(d.get("compras"))
+        agg[k]["ref"] = d.get("ref_campana") or agg[k].get("ref") or ""
     filas, props = [], []
     for (plat, prod, campana), a in agg.items():
         cpa = a["gasto"] / a["compras"] if a["compras"] else None
@@ -263,10 +266,10 @@ def guardian_pauta(space_id, inp):
                 props.append(f"{campana}: CPA {cpa:,.0f}, 30 % bajo el límite; candidata a subir presupuesto.")
             else:
                 veredicto = "dentro del límite"
-        filas.append([campana, plat, prod, r2(a["gasto"]), int(a["compras"]), r2(cpa) if cpa else None, veredicto])
+        filas.append([campana, plat, prod, r2(a["gasto"]), int(a["compras"]), r2(cpa) if cpa else None, veredicto, a["ref"] or None])
     return {"resumen": f"Reglas activas evaluadas sobre los últimos {dias} días. Pausar es reversible; subir presupuesto siempre queda como propuesta.",
             "metricas": [M("Campañas evaluadas", len(filas)), M("Sobre el límite", len(props), "bad" if props else "ok"), M("Reglas activas", len(reglas), None if reglas else "amber")],
-            "tablas": [T("Campañas", ["Campaña", "Plataforma", "Producto", "Gasto", "Compras", "CPA", "Veredicto"], sorted(filas, key=lambda f: -f[3]))],
+            "tablas": [T("Campañas", ["Campaña", "Plataforma", "Producto", "Gasto", "Compras", "CPA", "Veredicto", "ID de campaña"], sorted(filas, key=lambda f: -f[3]))],
             "alertas": props + ([] if reglas else ["No hay reglas activas: define el CPA límite por producto en la pestaña «Datos»."])}
 
 
@@ -406,7 +409,32 @@ def check_store(url: str, pixel: str = "") -> dict:
                "encontrado" if ("fbq(" in low or "ttq." in low) else "no se ve en el HTML"),
               ("Botón o formulario de compra", any(k in low for k in ("/cart/add", "add-to-cart", "addtocart", 'name="add"', "checkout", "comprar", "pedir ahora", "releasit", "cod-form")), ""),
               ("Sin mensaje de error o cierre", not any(k in low for k in ("this store is unavailable", "tienda no disponible", "password-page", "opening soon", "liquid error")), "")]
+    parts = urlsplit(url)
+    if "cdn.shopify.com" in low and "/products/" in parts.path:
+        # Tienda Shopify: el producto debe estar disponible para la venta y el carrito debe responder. Solo lecturas: no se crea ningún pedido.
+        base = f"{parts.scheme}://{parts.netloc}"
+        st, body = _get(f"{base}{parts.path.rstrip('/').split('?')[0]}.js")
+        try:
+            prod = json.loads(body) if st == 200 else None
+        except ValueError:
+            prod = None
+        checks.append(("Producto disponible para la venta", bool(prod and prod.get("available")), "agotado o no publicado" if prod and not prod.get("available") else "" if prod else f"HTTP {st}"))
+        st, _ = _get(f"{base}/cart.js")
+        checks.append(("El carrito responde", st == 200, f"HTTP {st}"))
     return {"url": url, "ok": all(c[1] for c in checks), "ms": ms, "checks": checks}
+
+
+def _get(url: str) -> tuple[int, str]:
+    url = security.check_public_url(url)
+    raw = b""
+    with webfetch._client() as cli, cli.stream("GET", url) as resp:
+        if not webfetch._peer_is_public(resp):
+            raise security.SecurityError("La conexión terminó en una dirección privada; descartada.")
+        for chunk in resp.iter_bytes():
+            raw += chunk
+            if len(raw) > 400_000:
+                break
+    return resp.status_code, raw.decode("utf-8", "replace")
 
 
 @tool("salud_tienda", "Comprobación de salud de una tienda o página", ["enlace:URL de la página de producto:url", "pixel:ID de píxel esperado (opcional)"], auto=False)
@@ -418,7 +446,7 @@ def salud_tienda(space_id, inp):
     records.create(space_id, "dd_chequeo", f"{webfetch.domain_of(res['url'])} · {'ok' if res['ok'] else 'falla'}",
                    {"fecha": date.today().isoformat(), "tienda": res["url"], "resultado": "ok" if res["ok"] else ", ".join(fallas),
                     "detalle": "\n".join(f"{'✓' if c[1] else '✗'} {c[0]} {c[2]}".strip() for c in res["checks"])}, status="ok" if res["ok"] else "falla")
-    return {"resumen": "Comprobación determinista de la página pública (una sola lectura). No realiza compras de prueba ni envía formularios.",
+    return {"resumen": "Comprobación determinista de la página pública, solo con lecturas. En tiendas Shopify verifica además que el producto esté a la venta y que el carrito responda. No hace una compra de prueba: crearía pedidos reales.",
             "metricas": [M("Estado", "sana" if res["ok"] else "con fallas", "ok" if res["ok"] else "bad"), M("Tiempo de respuesta", f"{res['ms']} ms")],
             "tablas": [T("Comprobaciones", ["Comprobación", "Resultado", "Detalle"], [[c[0], "ok" if c[1] else "FALLA", c[2]] for c in res["checks"]])],
             "alertas": [f"Falla: {f}" for f in fallas]}

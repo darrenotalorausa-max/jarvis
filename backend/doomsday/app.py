@@ -14,10 +14,12 @@ from jarvis.providers.base import ProviderError
 from jarvis.security import safe_join
 from jarvis.util import new_id, now_iso
 
-from . import VERSION, catalog, engine, kinds, skills, tools
+from . import VERSION, catalog, engine, integrations, kinds, skills, tools
 
 kinds.register()
+integrations.register()
 japi.JOB_TYPES["dd_run"] = "Orden de Doomsday"
+japi.JOB_TYPES["dd_clip"] = "Recorte de clip"
 app = japi.app
 app.title = "Doomsday"
 router = APIRouter(prefix="/api/dd")
@@ -42,8 +44,12 @@ def ensure_seed() -> dict:
 def _space_of(mod: dict, space: str | None = None) -> str:
     spaces = ensure_seed()
     sid = space or spaces[mod["capa"]]
-    if not db.one("SELECT id FROM spaces WHERE id=?", (sid,)):
+    row = db.one("SELECT id, kind FROM spaces WHERE id=? AND archived=0", (sid,))
+    if not row:
         raise HTTPException(404, "El espacio no existe.")
+    if row["kind"] != catalog.LAYERS[mod["capa"]][1]:
+        # Un módulo solo trabaja en espacios de su capa: los datos de clientes, tiendas y personales no se cruzan.
+        raise ValueError(f"El módulo {mod['id']} pertenece a la capa «{catalog.LAYERS[mod['capa']][0]}» y no puede usarse en ese espacio.")
     return sid
 
 
@@ -69,7 +75,7 @@ def overview():
     for mid, m in catalog.MODULES.items():
         e = ent.get(mid) or {}
         mods[mid] = {"registros": sum(rec.get((spaces[m["capa"]], k), 0) for k in m["kinds"]), "entregables": e.get("total", 0), "por_revisar": e.get("por_revisar") or 0, "ultimo": e.get("ultimo")}
-    estado = {r["status"]: r["c"] for r in db.query("SELECT status, COUNT(*) c FROM jobs WHERE type IN ('dd_run','connector_action') GROUP BY status")}
+    estado = {r["status"]: r["c"] for r in db.query("SELECT status, COUNT(*) c FROM jobs WHERE type IN ('dd_run','dd_clip','media_generate','connector_action') GROUP BY status")}
     return {"modulos": mods, "trabajos": estado, "activos": sum(1 for v in mods.values() if v["registros"] or v["entregables"]),
             "por_revisar": sum(v["por_revisar"] for v in mods.values()), "skills_propias": sum(1 for s in skills.listing() if s["origen"] == "propia")}
 
@@ -206,6 +212,7 @@ def habit_check(body: dict = Body(...)):
 # El comodín de la interfaz de Jarvis debe quedar al final: se retira, se añaden las rutas de Doomsday y se registra el propio.
 app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/{full_path:path}"]
 app.include_router(router)
+app.include_router(integrations.router)
 
 
 @app.get("/{full_path:path}")

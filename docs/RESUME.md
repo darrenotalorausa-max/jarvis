@@ -14,9 +14,10 @@ Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el c�
 Construido y probado en Linux; ver `docs/DOOMSDAY.md` y la sección Doomsday de `IMPLEMENTATION_STATUS.md`. Para retomar, en orden de valor:
 1. Conectar una IA real en Doomsday (Conexiones) y evaluar las skills del top 5 (G04, M06, G02, M01, V02) con casos reales; ajustar `backend/doomsday/skills/*.md`.
 2. Importar las skills propias del usuario (Dawn, tema, guiones) desde Skills → «Importar mis skills».
-3. Integraciones reales por orden: sincronización de gasto de Meta por campaña (`app.py`, junto a `sync_shopify`), Dropi (API o importador de su exportación), pausa de anuncios como `connector_action`, Higgsfield para M06, WhatsApp para V05.
-4. G04: subir secciones del tema e imágenes al borrador de Shopify.
-5. Validar `START_DOOMSDAY.cmd` en Windows.
+3. Validar con cuentas reales, una por una, las plantillas de `backend/doomsday/integrations.py`: Meta Ads (gasto y pausa), TikTok Ads (ruta y campos del informe, pausa), WhatsApp (envío), Shopify (`dd_producto_borrador`). Los arreglos quedan acotados a `PRESETS`/`SHOPIFY_EXTRA` y a `sync_ads`.
+4. Pedir al usuario una exportación real de Dropi y ajustar los alias de columnas (`COLS`) y los estados (`_estado`).
+5. Pendiente de construir: cobros y firma (V08), secciones del tema en Shopify (G04), paginación de informes de pauta, Higgsfield si publica API.
+6. Validar `START_DOOMSDAY.cmd` en Windows y el micrófono de P04.
 
 ## Para retomar (en orden de valor)
 

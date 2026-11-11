@@ -6,7 +6,7 @@ Proceso, puerto (8766) y base de datos (`doomsday_home/`) propios. Reutiliza el 
 ## Arrancar
 ```bash
 ./scripts/start_doomsday.sh [--app]     # Windows: START_DOOMSDAY.cmd
-cd backend && ../.venv/bin/python -m pytest tests/test_doomsday.py -q
+cd backend && ../.venv/bin/python -m pytest tests/test_doomsday.py tests/test_doomsday_integrations.py -q
 cd frontend && npm run build            # compila Jarvis (dist) y Doomsday (dist-doomsday)
 node frontend/e2e/doomsday.cjs          # recorrido en navegador contra una instancia LIMPIA en marcha
 ```
@@ -17,6 +17,7 @@ Variables: `DOOMSDAY_HOME`, `DOOMSDAY_PORT`.
 - `backend/doomsday/catalog.py` los 100 módulos (declarativo): datos, herramientas, acciones, capa, autonomía.
 - `kinds.py` tipos de registro `dd_*` · `tools.py` 32 herramientas deterministas (sin IA) · `skills/*.md` 100 skills integradas · `skills.py` versiones, importación y prompt.
 - `engine.py` trabajo `dd_run`: skill + registros + evidencia calculada + fuentes → entregable `dd` revisable (+ registros).
+- `integrations.py` Meta/TikTok Ads, WhatsApp, operador logístico, borrador de Shopify, medios de creativos, recorte de clips y espacios por cliente.
 - `app.py` rutas `/api/dd/*` sobre la API del motor · `launch.py`, `worker.py`, `env.py`.
 - `frontend/src/doomsday/` interfaz (`App.tsx` tablero, categorías, skills; `Module.tsx` panel de módulo y widgets; `doomsday.css` solo redefine tokens).
 

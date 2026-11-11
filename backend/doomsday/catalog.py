@@ -94,7 +94,7 @@ M("P10", "Documentador de procesos", "Nadie escribe los SOP", "de la grabación 
 
 # ---------- 2. Sistemas internos de gestión empresarial
 M("G01", "Núcleo de datos", "Shopify, pauta y logística no se cruzan", "una base con datos diarios", "Conectores; modelo común; consultas",
-  "Eq", "CONSTRUIR", "L", 67, nivel="A", kinds=["dd_pedido", "dd_gasto_pauta", "dd_liquidacion"], tools=["utilidad_cod"], conexiones=["shopify", "meta"], widget="sync",
+  "Eq", "CONSTRUIR", "L", 67, nivel="A", kinds=["dd_pedido", "dd_gasto_pauta", "dd_liquidacion"], tools=["utilidad_cod"], conexiones=["shopify", "meta", "tiktok", "dropi"], widget="sync",
   acciones=[A("calidad", "Auditar calidad de datos", "Evalúa cobertura y calidad de los datos cargados: huecos de fechas, pedidos sin costo, campañas sin producto y qué importar para corregirlo.",
               herramienta="utilidad_cod")])
 M("G02", "Utilidad real COD", "El ROAS no descuenta devoluciones ni fletes", "utilidad neta por producto y campaña", "Costo y flete por pedido; tasa de entrega; margen por anuncio",
@@ -134,7 +134,7 @@ M("G10", "Tablero de tareas", "Tareas en chats", "un gestor", "Asignar; fechas; 
 
 # ---------- 3. Marketing digital, publicidad y growth
 M("M01", "Guardián de pauta", "Anuncios que pierden mientras duermes", "reglas que pausan y avisan", "Pausa por CPA; alertas; registro",
-  "Yo", "COMPRAR", "S", 72, nivel="C", kinds=["dd_regla_pauta", "dd_gasto_pauta", "dd_alerta"], tools=["guardian_pauta"], conexiones=["meta"],
+  "Yo", "COMPRAR", "S", 72, nivel="C", kinds=["dd_regla_pauta", "dd_gasto_pauta", "dd_alerta"], tools=["guardian_pauta"], conexiones=["meta", "tiktok"], widget="pausa",
   acciones=[A("calibrar", "Calibrar reglas", "Propone el CPA límite y el gasto mínimo por producto a partir del margen y de los datos, cuidando no apagar ganadores en aprendizaje.",
               herramienta="guardian_pauta", emite="dd_regla_pauta")])
 M("M02", "Lanzador masivo", "Subir 30 anuncios a mano", "carga por lotes", "Plantillas; nombres; multicanal",
@@ -154,7 +154,7 @@ M("M05", "Vigía de competidores", "Revisar bibliotecas de anuncios a mano", "se
   acciones=[A("analizar", "Analizar un competidor", "Analiza la página adjunta: oferta, ángulos, estructura, precio y lo que conviene probar. Solo lo que la fuente muestra.",
               ["enlace:Página o biblioteca del competidor:url", "foco:Qué quieres aprender:textarea"])])
 M("M06", "Fábrica de variaciones", "Un ganador produce pocas variantes", "lotes de variaciones para revisar", "Hooks nuevos; formatos; cola de revisión",
-  "Yo, Eq", "CONSTRUIR", "M", 77, kinds=["dd_creativo"], tools=["cumplimiento"], conexiones=["higgsfield"],
+  "Yo, Eq", "CONSTRUIR", "M", 77, kinds=["dd_creativo"], tools=["cumplimiento"], conexiones=["video"], widget="media",
   acciones=[A("variaciones", "Generar 20 variaciones", "Del anuncio ganador, genera exactamente 20 variaciones con la matriz hook × ángulo × formato, nombradas de forma consistente y listas para producir.",
               ["producto:Producto", "ganador:Guion o descripción del anuncio ganador:textarea", "por_que:Por qué crees que gana:textarea",
                "plataforma:Plataforma:select:meta|tiktok|ambas"], emite="dd_creativo")])
@@ -190,7 +190,7 @@ M("C02", "Perfil de voz y guion", "Los borradores de IA no suenan a ti", "perfil
 M("C03", "Evaluador de hooks", "Elegir hook a ojo", "comparación con tu histórico", "Variantes; puntaje; motivo", "Yo", "INTEGRAR", "S", 57, nivel="A", kinds=["dd_pieza"],
   acciones=[A("evaluar", "Puntuar hooks", "Puntúa cada hook (claridad, tensión, especificidad, promesa creíble, encaje con la voz) comparándolo con las piezas publicadas y sus vistas.",
               ["hooks:Hooks a evaluar (uno por línea):textarea", "tema:Tema del video"])])
-M("C04", "Línea de clips", "Videos largos sin recortar", "clips automáticos", "Detectar; subtitular; exportar", "Yo, Eq", "COMPRAR", "S", 66, kinds=["dd_pieza"],
+M("C04", "Línea de clips", "Videos largos sin recortar", "clips automáticos", "Detectar; subtitular; exportar", "Yo, Eq", "COMPRAR", "S", 66, kinds=["dd_pieza"], widget="clip",
   acciones=[A("momentos", "Detectar momentos para clips", "De la transcripción, selecciona los momentos que funcionan solos como clip: inicio y fin, hook, título y por qué retiene.",
               ["transcripcion:Transcripción con tiempos:textarea"], emite="dd_pieza")])
 M("C05", "Programador multiplataforma", "Publicar red por red", "una cola", "Programar; adaptar; calendario", "Yo", "COMPRAR", "S", 56, kinds=["dd_pieza"],
@@ -226,10 +226,10 @@ M("V04", "Onboarding en un clic", "Alta de cliente con diez pasos", "secuencia �
   acciones=[A("alta", "Secuencia de alta", "Genera la secuencia completa de alta: accesos a pedir, carpeta, mensaje de bienvenida, agenda del kickoff y responsables.",
               ["cliente:Cliente", "plan:Plan contratado", "notas:Particularidades:textarea"], emite="dd_paso")])
 M("V05", "Bandeja unificada", "WhatsApp, correo y DM separados", "una bandeja con borradores", "Clasificar; borrador; escalar",
-  "Yo, Eq", "COMPRAR", "M", 66, kinds=["dd_mensaje"], conexiones=["whatsapp"],
+  "Yo, Eq", "COMPRAR", "M", 66, kinds=["dd_mensaje"], conexiones=["whatsapp"], widget="whatsapp",
   acciones=[A("borradores", "Clasificar y redactar borradores", "Clasifica cada mensaje nuevo y redacta el borrador de los rutinarios. Negociaciones y casos delicados se marcan para escalar, sin borrador.",
               ["mensajes:Pega los mensajes (opcional si ya están en la bandeja):textarea"], emite="dd_mensaje")])
-M("V06", "Portal B2B acotado", "Entregables dispersos", "portal solo de entrega y reportes", "Recursos; reportes; estado", "B2B", "ADAPTAR", "L", 57, nivel="A", kinds=["dd_entrega", "dd_cliente"],
+M("V06", "Portal B2B acotado", "Entregables dispersos", "portal solo de entrega y reportes", "Recursos; reportes; estado", "B2B", "ADAPTAR", "L", 57, nivel="A", kinds=["dd_entrega", "dd_cliente"], widget="portal",
   acciones=[A("estado", "Estado de entregas por cliente", "Resume por cliente qué está entregado, en curso y pendiente de su aprobación.")])
 M("V07", "CRM ligero", "Seguimiento en la cabeza", "pipeline", "Etapas; recordatorios; notas", "Yo", "COMPRAR", "S", 59, kinds=["dd_trato"], tools=["pipeline"],
   acciones=[A("seguimiento", "Plan de seguimiento", "Indica a quién escribir hoy, con qué mensaje y qué oportunidad está estancada, según el pipeline.", herramienta="pipeline")])
@@ -407,5 +407,5 @@ TOP20 = ["G04", "M06", "G02", "M01", "C02", "S01", "V02", "M03", "G07", "M02", "
 
 def public() -> dict:
     return {"categorias": {k: {"nombre": v[0], "capa": v[1]} for k, v in CATEGORIES.items()},
-            "capas": {k: {"nombre": v[0], "descripcion": v[2]} for k, v in LAYERS.items()}, "autonomia": AUTONOMY, "top20": TOP20,
+            "capas": {k: {"nombre": v[0], "tipo": v[1], "descripcion": v[2]} for k, v in LAYERS.items()}, "autonomia": AUTONOMY, "top20": TOP20,
             "modulos": list(MODULES.values())}

@@ -6,7 +6,7 @@ import threading
 from . import env  # noqa: F401  (fija carpeta y puerto de Doomsday antes de cargar el motor)
 from jarvis import worker as jworker
 
-from . import engine, kinds, tools  # noqa: F401  (registra tipos y el manejador)
+from . import engine, integrations, kinds, tools  # noqa: F401  (registra tipos y manejadores)
 
 log = logging.getLogger("doomsday.worker")
 STORE_CHECK_SECONDS = 3600
@@ -22,6 +22,7 @@ def _store_loop(stop: threading.Event) -> None:
 
 def main() -> None:
     kinds.register()
+    integrations.register()
     stop = threading.Event()
     threading.Thread(target=_store_loop, args=(stop,), daemon=True).start()
     try:

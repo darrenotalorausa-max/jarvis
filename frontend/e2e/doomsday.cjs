@@ -107,6 +107,34 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   await vault.getByText("S3creto-Largo-123").waitFor();
   ok("La bóveda guarda el secreto fuera de la vista y lo revela a petición");
 
+  // Operador logístico (G01): vista previa y guardado de su exportación CSV.
+  await page.goto(`${BASE}/#/m/G01`);
+  const logi = page.locator(".panel", { hasText: "Importar la exportación de tu operador logístico" });
+  await logi.locator("input[type=file]").setInputFiles({ name: "dropi.csv", mimeType: "text/csv", buffer: Buffer.from("ID;ESTADO;CIUDAD;TOTAL;FLETE\nZ1;ENTREGADO;Cali;89.900;12.500\nZ2;DEVOLUCION;Pasto;89.900;12.500\n") });
+  await logi.getByRole("button", { name: "Revisar sin guardar" }).click();
+  await logi.getByText("Vista previa: aún no se ha guardado nada.").waitFor();
+  await logi.getByRole("button", { name: "Guardar cambios" }).click();
+  await logi.getByText("Guardado.").waitFor();
+  for (const t of ["Traer pedidos de Shopify", "Traer gasto de pauta (Meta y TikTok)"]) await page.locator(".panel__title", { hasText: t }).waitFor();
+  ok("G01 importa la exportación logística con vista previa y ofrece Shopify, Meta y TikTok");
+
+  // Paneles de integración presentes en sus módulos.
+  for (const [id, title] of [["M01", "Pausar en la plataforma"], ["V05", "Enviar por WhatsApp"], ["M06", "Producir creativos aprobados"], ["C04", "Recortar un clip"], ["P04", "Grabar una nota de voz"], ["G04", "Publicar la ficha aprobada como borrador en Shopify"]]) {
+    await page.goto(`${BASE}/#/m/${id}`);
+    await page.locator(".panel__title", { hasText: title }).waitFor();
+  }
+  ok("M01, V05, M06, C04, P04 y G04 muestran su integración");
+
+  // Portal (V06): un espacio por cliente, dentro de la capa de clientes.
+  await page.goto(`${BASE}/#/m/V06`);
+  const portal = page.locator(".panel", { hasText: "Portal por cliente" });
+  await portal.locator("input").first().fill("Acme");
+  await portal.getByRole("button", { name: "Crear espacio del cliente" }).click();
+  await portal.getByRole("cell", { name: "Acme", exact: true }).waitFor();
+  await portal.locator("tr", { hasText: "Acme" }).getByRole("button", { name: "Trabajar en este espacio" }).click();
+  await page.waitForFunction((base) => { const el = document.querySelector(".top select"); return !!el && el.value !== base && el.selectedOptions[0]?.textContent === "Acme"; }, cat.espacios.clientes);
+  ok("V06 crea el espacio de un cliente y trabaja dentro de él");
+
   // Teleprompter (C06) y vistas del motor.
   await page.goto(`${BASE}/#/m/C06`);
   await page.locator(".panel", { hasText: "Teleprompter" }).locator("textarea").fill("Hola.\nEsto es una prueba.");

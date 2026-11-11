@@ -134,6 +134,16 @@ Aplicación aparte (`backend/doomsday`, `frontend/src/doomsday`, puerto 8766, da
 - Órdenes `dd_run` con proveedor simulado: prompt con skill, fuentes entre `<fuente>`, entregable revisable, registros emitidos, revisión automática de cumplimiento, salida malformada rechazada, espera sin IA o entrega solo evidencia.
 - Bóveda: el secreto no entra en SQLite ni en auditoría. Lectura de pedidos de Shopify sin duplicados.
 
-**No probado con cuentas reales:** ninguna orden se ha ejecutado con un modelo real (calidad de las skills sin evaluar); Shopify, Meta y el resto de apps solo con transporte simulado; `START_DOOMSDAY.cmd` y la ventana `--app` sin ejecutar.
+**Integraciones (segunda tanda, `backend/doomsday/integrations.py`, `tests/test_doomsday_integrations.py`, 8 pruebas con transporte simulado; recorrido en navegador de 16 pasos):**
+- Gasto de Meta Ads y TikTok Ads por anuncio y día → `dd_gasto_pauta` (alta o actualización, producto asignado si aparece en la campaña).
+- Pausa y reanudación de campañas/anuncios (M01) y envío de WhatsApp (V05) como `connector_action`: nada sale sin aprobar la petición exacta.
+- Exportación CSV del operador logístico (Dropi u otro): vista previa, estados, fletes, costos y liquidaciones; sin duplicados.
+- G04: borrador completo en Shopify desde una ficha APROBADA (secciones como HTML, precio, imagen, título y descripción SEO).
+- M06: video o imagen de un creativo aprobado por el router de medios del motor (OpenAI, Gemini, fal.ai).
+- C04: recorte real con FFmpeg (probado con FFmpeg real, vertical 9:16). P04: grabación en el navegador → transcripción del motor.
+- G07: en tiendas Shopify verifica producto disponible y carrito (solo lecturas).
+- V06: un espacio por cliente; un módulo no se ejecuta fuera de su capa; clientes y equipo ven solo Revisión.
 
-**No construido todavía (lo que el PDF resuelve con servicios externos):** no hay conexión directa con Dropi, TikTok Ads, WhatsApp Business ni Higgsfield (esos módulos trabajan con registros, CSV y el conector universal); el gasto de Meta entra por CSV, no por sincronización; el guardián de pauta evalúa y propone, no pausa en la plataforma; M06 genera guiones y nombres, no los videos; C04 propone cortes, no recorta; P04 no graba audio; el monitor de tiendas lee la página pública, no hace compra de prueba; G04 publica solo título y descripción en borrador (sin secciones del tema ni imágenes); sin portal con acceso para clientes ni cobros o firma.
+**No probado con cuentas reales:** ninguna orden se ha ejecutado con un modelo real (calidad de las skills sin evaluar); Shopify, Meta, TikTok y WhatsApp solo con transporte simulado (las plantillas de TikTok y WhatsApp se escribieron de memoria de su documentación: validar rutas y campos); generación de video sin ejecutar; micrófono sin probar; `START_DOOMSDAY.cmd` y la ventana `--app` sin ejecutar.
+
+**No construido (y por qué):** Dropi por API (no publica una API utilizable; entra por CSV, no por Excel); Higgsfield directo (no hay adaptador; el video sale por OpenAI, Gemini o fal.ai); recepción automática de WhatsApp (exige un webhook público y Doomsday es local); compra de prueba en tiendas (crearía pedidos reales); montaje de secciones del tema e imágenes múltiples en Shopify; subtítulos y detección automática en C04 (están en el editor de Jarvis); cobros y firma electrónica; paginación de informes de pauta de más de 500 filas.

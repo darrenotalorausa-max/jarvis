@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api, fmtDate } from "../api";
 import { useApp, useData } from "../store";
-import { Badge, Btn, ErrorBox, Modal, Panel, Skeleton, Stat } from "../components/ui";
+import { Badge, Btn, ErrorBox, Modal, Panel, Select, Skeleton, Stat } from "../components/ui";
 import { Review } from "../views/manage";
 import { Connections } from "../views/Connections";
 import { Apps } from "../views/Apps";
@@ -16,7 +16,7 @@ export type Mod = {
 };
 export type Tool = { id: string; label: string; campos: FieldSpec[]; auto: boolean };
 export type Catalog = {
-  version: string; categorias: Record<string, { nombre: string; capa: string }>; capas: Record<string, { nombre: string; descripcion: string }>; autonomia: Record<string, string>;
+  version: string; categorias: Record<string, { nombre: string; capa: string }>; capas: Record<string, { nombre: string; tipo: string; descripcion: string }>; autonomia: Record<string, string>;
   top20: string[]; modulos: Mod[]; espacios: Record<string, string>; herramientas: Tool[]; skills: { id: string; nombre: string; origen: string; version: number; caracteres: number }[];
 };
 type Overview = { modulos: Record<string, { registros: number; entregables: number; por_revisar: number; ultimo: string | null }>; activos: number; por_revisar: number; skills_propias: number; trabajos: Record<string, number> };
@@ -34,7 +34,8 @@ const FIXED: [string, string, string][] = [
 
 export function App() {
   const { boot, space, setSpace, route, nav, jobs, run, reload } = useApp();
-  const cat = useData<Catalog>(() => api("/dd/catalog"), []);
+  const owner = (boot.user?.role || "propietario") === "propietario";
+  const cat = useData<Catalog | null>(() => (owner ? api<Catalog>("/dd/catalog") : Promise.resolve(null)), [owner]);
   const [palette, setPalette] = useState(false);
   const current = route[0] || "inicio";
   const paused = !!boot.settings.agents_paused;
@@ -48,10 +49,12 @@ export function App() {
     document.title = `${current === "m" && mod ? `${mod.id} ${mod.nombre}` : current === "c" && cat.data ? cat.data.categorias[route[1]]?.nombre : FIXED.find((f) => f[0] === current)?.[1] || "Tablero"} · Doomsday`;
   }, [current, mod, cat.data, route]);
   const ctx = useMemo(() => (cat.data ? { cat: cat.data, reload: cat.reload } : null), [cat.data]);
+  if (!owner) return <Guest />;
   if (cat.error) return <div className="splash"><ErrorBox message={cat.error} retry={cat.reload} /></div>;
   if (!ctx) return <div className="splash"><p className="muted">Cargando los 100 módulos…</p></div>;
   const layers = Object.entries(ctx.cat.espacios);
-  const layer = layers.find(([, id]) => id === space.id)?.[0];
+  const layer = layers.find(([, id]) => id === space.id)?.[0] || Object.keys(ctx.cat.capas).find((k) => ctx.cat.capas[k].tipo === space.kind);
+  const siblings = boot.spaces.filter((s) => !s.archived && s.kind === space.kind);
   const running = jobs.filter((j) => j.status === "running" || j.status === "pending").length;
   const waiting = jobs.filter((j) => j.status.startsWith("waiting")).length;
   const activeCat = current === "c" ? route[1] : current === "m" ? mod?.categoria : "";
@@ -64,8 +67,9 @@ export function App() {
             DOOMSDAY
           </a>
           <div className="seg" role="group" aria-label="Capa de datos">
-            {layers.map(([key, id]) => <button key={key} aria-pressed={space.id === id} title={ctx.cat.capas[key].descripcion} onClick={() => setSpace(id)}>{ctx.cat.capas[key].nombre.split(" · ")[0]}</button>)}
+            {layers.map(([key, id]) => <button key={key} aria-pressed={layer === key} title={ctx.cat.capas[key].descripcion} onClick={() => setSpace(id)}>{ctx.cat.capas[key].nombre.split(" · ")[0]}</button>)}
           </div>
+          {siblings.length > 1 && <div><Select value={space.id} onChange={setSpace} options={siblings.map((s) => [s.id, s.name])} /></div>}
           <span className="top__spacer" />
           {running > 0 && <button className="pill pill--ok" onClick={() => nav("sistema")}><i />{running} en curso</button>}
           {waiting > 0 && <button className="pill pill--warn" onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
@@ -99,6 +103,22 @@ export function App() {
         {palette && <Palette onClose={() => setPalette(false)} />}
       </div>
     </CatCtx.Provider>
+  );
+}
+
+/** Clientes y equipo: entran con su usuario y solo ven la revisión de los espacios que tienen asignados. */
+function Guest() {
+  const { boot, space, setSpace } = useApp();
+  return (
+    <div className="shell" style={{ gridTemplateColumns: "1fr" }}>
+      <header className="top">
+        <span className="dbrand">DOOMSDAY</span>
+        {boot.spaces.length > 1 && <div><Select value={space.id} onChange={setSpace} options={boot.spaces.map((s) => [s.id, s.name])} /></div>}
+        <span className="top__spacer" />
+        <button className="pill" onClick={async () => { await api("/logout", { method: "POST" }); location.reload(); }}>{boot.user.username} · salir</button>
+      </header>
+      <main className="main" key={space.id}><Review /></main>
+    </div>
   );
 }
 
