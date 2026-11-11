@@ -37,15 +37,28 @@ const FIXED: [string, string, string][] = [
   ["sistema", "Trabajos, uso y respaldo", "M4 6h16M4 12h10M4 18h13M19 12l2 2l-2 2"],
 ];
 
+/** Marca: un reloj a pocos minutos de la medianoche. La manecilla azul es «lo siguiente». */
 function Mark() {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
-      {["personal", "interna", "clientes", "comercial"].map((k, i) => (
-        <path key={k} d="M16 3.5a12.5 12.5 0 0 1 12.5 12.5" fill="none" stroke={`var(--${k})`} strokeWidth="3" strokeLinecap="round" transform={`rotate(${i * 90 + 8} 16 16)`} pathLength="100" strokeDasharray="78 22" />
-      ))}
-      <circle cx="16" cy="16" r="3" fill="var(--ink)" />
+      <circle cx="16" cy="16" r="12.6" fill="none" stroke="var(--ink)" strokeWidth="2.4" />
+      <path d="M16 16V8.6" stroke="var(--ink)" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M16 16L11.2 7.4" stroke="var(--accent)" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="16" cy="16" r="1.9" fill="var(--ink)" />
     </svg>
   );
+}
+
+const THEMES: [string, string][] = [["dark", "Oscuro"], ["light", "Claro"], ["auto", "Automático"]];
+function ThemeSwitch() {
+  const [t, setT] = useState(document.documentElement.dataset.theme || "dark");
+  const next = () => {
+    const n = THEMES[(THEMES.findIndex((x) => x[0] === t) + 1) % THEMES.length][0];
+    document.documentElement.dataset.theme = n;
+    try { localStorage.setItem("doomsday.tema", n); } catch { /* sin almacenamiento */ }
+    setT(n);
+  };
+  return <button className="pill" onClick={next} title="Cambiar el tema: oscuro, claro o según el sistema">Tema: {THEMES.find((x) => x[0] === t)?.[1]}</button>;
 }
 
 export function App() {
@@ -119,6 +132,7 @@ export function App() {
             {running > 0 && <button className="pill pill--ok" onClick={() => nav("sistema")}><i />{running} en curso</button>}
             {waiting > 0 && <button className="pill pill--warn" onClick={() => nav("sistema")}><i />{waiting} en espera</button>}
             <button className="pill" onClick={() => setPalette(true)}>Buscar módulo <kbd>Ctrl K</kbd></button>
+            <ThemeSwitch />
             <button className={`pill${paused ? " pill--warn" : " pill--ok"}`} aria-pressed={paused} title={paused ? "Reanudar todos los agentes" : "Pausar todos los agentes"}
               onClick={async () => { await run(api("/settings", { method: "PATCH", body: { agents_paused: !paused } }), paused ? "Agentes reanudados" : "Agentes en pausa: no se inicia ningún trabajo nuevo"); reload(); }}>
               <i />{paused ? "Agentes en pausa" : "Agentes activos"}
@@ -418,6 +432,7 @@ function Guest() {
         <div className="dtop">
           <a className="dbrand" href="#/" style={{ padding: 0, marginRight: "auto" }}><Mark /><strong>DOOMSDAY</strong><span>Portal de {space.name}</span></a>
           {boot.spaces.length > 1 && <Select value={space.id} onChange={setSpace} options={boot.spaces.map((s) => [s.id, s.name])} />}
+          <ThemeSwitch />
           <button className="pill" onClick={async () => { await api("/logout", { method: "POST" }); location.reload(); }}>{boot.user.username} · salir</button>
         </div>
         <div className="page" key={space.id}>

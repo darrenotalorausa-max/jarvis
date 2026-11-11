@@ -8,6 +8,11 @@ import { AppProvider } from "../store";
 import { Btn } from "../components/ui";
 import { App } from "./App";
 
+// El tema se aplica antes de pintar para que no haya destello: oscuro salvo que el usuario haya elegido otro.
+let theme = "dark";
+try { theme = localStorage.getItem("doomsday.tema") || "dark"; } catch { /* sin almacenamiento */ }
+document.documentElement.dataset.theme = ["dark", "light", "auto"].includes(theme) ? theme : "dark";
+
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <AppProvider

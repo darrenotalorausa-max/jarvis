@@ -1,6 +1,6 @@
 /* DOOMSDAY · sistema visual. Hoja de decisiones (docs/DOOMSDAY.md → «Diseño»):
    SUJETO     centro de mando de un operador con cuatro capas de negocio; su trabajo es dar una orden y ver qué exige decisión.
-   SUELO      el manual DOOMSDAY del propio usuario: neutros de sistema, paneles blancos sobre gris claro, oscuro automático en negro puro.
+   SUELO      el manual DOOMSDAY del propio usuario: neutros de sistema. Oscuro por defecto (negro puro, paneles grafito); claro y automático a elección.
    PALETA     suelo #f5f5f7 · superficie #ffffff · tinta #1d1d1f · azul de sistema = «lo siguiente» y acciones · un color por capa.
    TIPO       Inter: palabra-marca 800 muy apretada, texto 15/1.6, cifras tabulares. Mono solo para código y skills.
    ESPACIO    dentro de componente 4/8/12/16 · entre componentes 24/32 · ritmo de sección 56.
@@ -24,8 +24,22 @@
   --ease: cubic-bezier(0.2, 0.9, 0.25, 1);
   --t-press: 100ms; --t-ui: 140ms; --t-view: 280ms;
 }
+/* Tema: oscuro por defecto. El usuario puede elegir claro o automático (según el sistema) desde la cabecera; se recuerda en este navegador. */
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground: #000000; --s1: #1c1c1e; --s2: #2c2c2e; --s3: #3a3a3c;
+  --rule: #38383a; --rule-2: #48484a; --edge: #8e8e93;
+  --ink: #f5f5f7; --ink-2: #a1a1a6; --ink-3: #8e8e93;
+  --accent: #2997ff; --accent-ink: #6cb4ff; --accent-on: #000000; --accent-soft: rgba(41, 151, 255, 0.16); --accent-faint: rgba(41, 151, 255, 0.09);
+  --amber: #ffd60a; --amber-soft: rgba(255, 214, 10, 0.12);
+  --danger: #ff6961; --danger-soft: rgba(255, 105, 97, 0.12);
+  --ok: #30d158;
+  --personal: #ff6482; --interna: #30d158; --clientes: #bf5af2; --comercial: #ff9f0a;
+  --scrim: rgba(0, 0, 0, 0.6);
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root[data-theme="auto"] {
     --ground: #000000; --s1: #1c1c1e; --s2: #2c2c2e; --s3: #3a3a3c;
     --rule: #38383a; --rule-2: #48484a; --edge: #8e8e93;
     --ink: #f5f5f7; --ink-2: #a1a1a6; --ink-3: #8e8e93;

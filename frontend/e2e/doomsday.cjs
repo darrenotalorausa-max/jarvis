@@ -29,6 +29,17 @@ const ok = (msg) => console.log(`  ✓ ${String(++step).padStart(2, "0")} ${msg}
   await page.keyboard.press("ArrowRight");
   await page.locator(".dial__k").waitFor();
   ok("Tablero con 100 módulos, 20 mejores, cuatro capas y dial navegable con el teclado");
+  const fondo = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+  if ((await fondo()) !== "rgb(0, 0, 0)") throw new Error("Doomsday no abre en modo oscuro");
+  await page.getByRole("button", { name: "Tema: Oscuro" }).click();
+  await page.getByRole("button", { name: "Tema: Claro" }).waitFor();
+  if ((await fondo()) !== "rgb(245, 245, 247)") throw new Error("El tema claro no se aplicó");
+  await page.reload();
+  await page.getByRole("button", { name: "Tema: Claro" }).waitFor();  // se recuerda
+  await page.getByRole("button", { name: "Tema: Claro" }).click();
+  await page.getByRole("button", { name: "Tema: Automático" }).click();
+  await page.getByRole("button", { name: "Tema: Oscuro" }).waitFor();
+  ok("Abre en oscuro; el tema (oscuro, claro, automático) se cambia y se recuerda");
   await shot("tablero");
 
   for (const k of Object.keys(cat.categorias)) {
