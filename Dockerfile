@@ -14,7 +14,7 @@ RUN pip install --no-cache-dir -r backend/requirements.lock
 COPY backend/ backend/
 COPY content/ content/
 COPY --from=ui /src/frontend/dist frontend/dist
-ENV JARVIS_HOME=/data JARVIS_SECRETS_BACKEND=file JARVIS_SECRETS_FILE=/secrets/secrets.json JARVIS_HOST=0.0.0.0 JARVIS_NO_BROWSER=1
+ENV JARVIS_HOME=/data JARVIS_SECRETS_BACKEND=file JARVIS_SECRETS_FILE=/secrets/secrets.json JARVIS_HOST=0.0.0.0 JARVIS_NO_BROWSER=1 JARVIS_REQUIRE_LOGIN=1
 VOLUME ["/data", "/secrets"]
 EXPOSE 8765
 WORKDIR /app/backend

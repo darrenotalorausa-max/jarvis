@@ -17,6 +17,8 @@ docker compose up -d --build
 
 Los datos quedan en un volumen (`jarvis_data`) y las credenciales en otro (`jarvis_secrets`).
 
+En este modo todas las peticiones exigen iniciar sesión, también las que llegan desde el propio servidor o a través de un proxy inverso (fuera de Docker se activa con `JARVIS_REQUIRE_LOGIN=1` en `.env`).
+
 **Importante:** Jarvis sirve HTTP sin cifrar. No abras el puerto directamente a internet. Ponlo detrás de una VPN (Tailscale, WireGuard) o de un proxy inverso con HTTPS.
 
 ### Usuarios y roles
@@ -32,4 +34,4 @@ Los espacios personales nunca se comparten.
 ### Lo que no hace
 
 - **No hay sincronización** entre un Jarvis en tu PC y otro en un servidor: son dos instalaciones con datos separados. Elige una como principal y entra a ella desde los demás dispositivos. Para mover datos de una a otra, usa **Respaldo y recuperación**.
-- La configuración con Docker está escrita, pero **no se pudo ejecutar** durante el desarrollo. Pruébala antes de depender de ella.
+- La imagen de Docker se construyó y se arrancó en pruebas (interfaz, acceso con código y trabajos), salvo la instalación de FFmpeg, que el entorno de desarrollo no permitía descargar. Comprueba en tu servidor que el video funciona (Diagnóstico → FFmpeg).

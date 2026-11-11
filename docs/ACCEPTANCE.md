@@ -12,7 +12,7 @@ hace llamadas externas ni gasta dinero.
 
 ## Resultado de la última ejecución (2026-11-10, Linux, Python 3.13, Node 22, FFmpeg 6.1)
 
-- `pytest`: **94 superadas, 0 fallidas** (≈ 25 s).
+- `pytest`: **95 superadas, 0 fallidas** (≈ 25 s).
 - Recorrido en navegador: **completado sin problemas** (sin errores de consola, sin respuestas 5xx, sin desbordamiento en móvil).
 - Instalación desde un clon limpio con `scripts/setup.sh` y arranque con `scripts/start.sh`: **correcta** (API responde y sirve la interfaz; Ctrl+C detiene API y worker).
 - Lanzadores de Windows: **no ejecutados**.

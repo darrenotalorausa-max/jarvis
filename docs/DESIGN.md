@@ -9,13 +9,25 @@ Si cambias algo, cambia primero esta hoja. Los tokens viven en `frontend/src/sty
 |---|---|---|
 | Sujeto | Consola local de un solo operador que dirige trabajos de «empleados digitales» | El núcleo debe responder de un vistazo a «¿qué está haciendo el sistema ahora?» |
 | Mundo | Telemetría, cola de trabajos, latido del worker, timecodes, IDs, micrófono abierto/cerrado | De ahí salen el anillo de progreso, la onda y la tipografía mono de las lecturas |
-| Paleta | Fondo `#060A10`; superficies `#0B111A` / `#111A26` / `#18222F`; reglas `#1E2A38` / `#2C3B4D`; borde de control `#4D6379`; tinta `#E6EDF5` / `#9AABBD` / `#64768A`; acento azul arco `#4CC9F5`; ámbar `#F2A93B`; peligro `#F0616D`; correcto `#5FD3A0` | Neutros fríos teñidos hacia el acento. El acento solo marca lo activo y el núcleo; el ámbar se reserva a «requiere tu atención» |
+| Paleta | Fondo grafito `#07090C`; superficies `#0D1014` / `#13171D` / `#1A1F27`; reglas `#1B2129` / `#29313C`; borde de control `#586372`; tinta `#ECEFF3` / `#A3ACB8` / `#6F7986`; acento hielo `#8FD6F2`; ámbar `#E9B25F`; peligro `#EF6B73`; correcto `#7FD4A8` | Casi neutro, apenas frío: el cian saturado sobre azul marino se leía como «panel genérico». El acento vive en el núcleo y en lo activo; la acción principal es un botón claro (tinta sobre fondo), no de color; el ámbar se reserva a «requiere tu atención» |
 | Tipografía | Inter Variable (texto y títulos, con eje óptico) + JetBrains Mono (IDs, timecodes, lecturas) | Inter por indicación del usuario; la jerarquía va por peso y tamaño, sin mayúsculas espaciadas. Ambas se sirven desde el propio equipo (licencia OFL) |
 | Escala | 12 · 13.5 · 14 · 22 · 26 px | Pocos pasos y distintos; rango mayor de 2× |
 | Espacio | Dentro de componente 4/8/12/16 · entre componentes 20/24 · entre regiones 40 | Dos registros con números distintos; en móvil el ritmo se comprime |
 | Forma | Radio 12 en paneles, 8 en controles, 6 en etiquetas. Elevación **solo por escalón tonal**: sin sombras y sin borde + sombra | En fondo oscuro la sombra no separa; el escalón sí |
 | Movimiento | Una curva (`cubic-bezier(0.16, 1, 0.3, 1)`), tres duraciones (120 / 200 / 320 ms). Momentos: núcleo (continuo), encendido del núcleo, entrada de vista, modal, aviso, pulsación | Presupuesto cerrado; cada animación tiene función (estado, continuidad o respuesta) |
 | Firma | El núcleo, y solo el núcleo | Es el único elemento que emite luz; todo lo demás queda en silencio |
+
+## Modo Command: un instrumento, no un tablero
+
+La pantalla de Comando no usa tarjetas. Son tres columnas de texto sobre el fondo, separadas por espacio y por líneas finas:
+pendiente y capacidades a la izquierda, actividad y sistema a la derecha, y en el centro el núcleo, la conversación y la línea de órdenes.
+
+- Las cifras van en peso ligero y grande; el ámbar aparece solo si piden tu atención.
+- Las capacidades son un punto (lleno = disponible, hueco = sin configurar), sin etiquetas de color.
+- La actividad es una lista con un punto de estado y la hora; cada fila abre el trabajo.
+- La conversación es una transcripción: tu orden atenuada con una marca, la respuesta en tinta plena. Sin burbujas.
+- La línea de órdenes es una sola cápsula con micrófono y envío.
+- Las órbitas tenues que cruzan la pantalla nacen del núcleo y se apagan hacia los bordes: es la única luz.
 
 ## El núcleo (`components/Core.tsx`)
 
@@ -34,8 +46,8 @@ cambio de estado sigue siendo legible por color, lectura y un fundido corto (no 
 
 ### Dial de módulos y sonido
 
-El anillo exterior del núcleo son 14 sectores navegables (uno por módulo), inspirado en los diales de las referencias HUD que aportó
-el usuario pero con función real: cada sector es un enlace con foco de teclado. Los sonidos (`sound.ts`) se sintetizan con Web Audio,
+El bisel exterior es una escala fina de instrumento con 15 marcas navegables (una por módulo). Están mudas hasta que las apuntas
+con el ratón o el teclado: entonces el centro del núcleo nombra el módulo. Cada marca es un enlace con foco de teclado. Los sonidos (`sound.ts`) se sintetizan con Web Audio,
 sin archivos ni material de terceros: un encendido de unos 2 s una vez por sesión y señales breves ligadas a hechos (trabajo
 completado, fallo, micrófono abierto). Se desactivan desde la barra superior.
 

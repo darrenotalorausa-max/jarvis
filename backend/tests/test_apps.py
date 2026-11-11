@@ -83,7 +83,7 @@ def test_write_actions_need_exact_one_time_approval(fake, conn, space, client):
     sent = []
     fake.custom["tienda.myshopify.com"] = lambda req: sent.append(json.loads(req.content)) or httpx.Response(201, json={"product": {"id": 9}})
     p = connectors.PRESETS["shopify"]
-    c = conn("api", name="Shopify", base_url="https://tienda.myshopify.com/admin/api/2024-10", secret="shpat_x", options={"auth": p["auth"], "actions": p["actions"]})
+    c = conn("api", name="Shopify", base_url="https://tienda.myshopify.com/admin/api/2026-10", secret="shpat_x", options={"auth": p["auth"], "actions": p["actions"]})
     body = {"space": sid, "action": "crear_producto_borrador", "variables": {"titulo": "Rascador", "descripcion": "Sisal"}}
     assert client.post(f"/api/apps/{c['id']}/run", json=body).status_code == 502 and sent == []                    # nunca por la vía directa
     req = client.post(f"/api/apps/{c['id']}/request", json=body).json()
@@ -324,3 +324,16 @@ def test_external_command_api_needs_token(space, client):
 def test_apagado_solo_con_lanzador(client):
     # Sin lanzador no hay nada que apagar: respuesta clara, sin efectos.
     assert client.post("/api/shutdown").status_code == 409
+
+
+def test_proxy_or_forced_login_is_not_trusted_as_local(monkeypatch, client):
+    # En local puro, un encabezado de proxy no cambia nada.
+    assert client.get("/api/bootstrap", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 200
+    monkeypatch.setenv("JARVIS_HOST", "0.0.0.0")
+    monkeypatch.setenv("JARVIS_ACCESS_CODE", "codigo-largo-123")
+    assert client.get("/api/bootstrap").status_code == 200  # este equipo, sin proxy
+    assert client.get("/api/bootstrap", headers={"X-Forwarded-For": "203.0.113.9"}).status_code == 401
+    monkeypatch.setenv("JARVIS_REQUIRE_LOGIN", "1")
+    assert client.get("/api/bootstrap").status_code == 401
+    assert client.post("/api/login", json={"code": "codigo-largo-123"}).status_code == 200
+    assert client.get("/api/bootstrap").status_code == 200

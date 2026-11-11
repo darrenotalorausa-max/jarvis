@@ -2,9 +2,9 @@
 
 Fecha: 2026-11-10 · Versión 0.1.0. Este documento distingue lo comprobado de lo que solo está escrito.
 
-**Cómo se comprobó:** 94 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
+**Cómo se comprobó:** 95 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
 y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una instalación limpia en Linux.
-**No se ha ejecutado nada en Windows ni contra proveedores o servicios reales** (no había credenciales ni acceso de red a ellos). Tampoco se pudo abrir la ventana de aplicación ni levantar Docker en el entorno de desarrollo.
+**No se ha ejecutado nada en Windows ni contra proveedores o servicios reales** (no había credenciales ni acceso de red a ellos). Tampoco se pudo abrir la ventana de aplicación. Docker sí se construyó y arrancó, salvo el paso de FFmpeg (ver B).
 
 ## A. Implementado y probado
 
@@ -43,6 +43,7 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Tutor y preguntas a las notas | Ruta de estudio desde archivo (módulos, autoevaluación, tarjetas) y respuesta citando notas, con modelo simulado; sin modelo permitido no se envía nada (en navegador) |
 | Texto bíblico | Carga de una traducción aportada por el usuario (texto o JSON), pasaje por referencia y búsqueda; en navegador |
 | MCP y API externa | Servidor MCP por stdio (initialize, tools/list, tools/call) y órdenes con token rotatorio, limitados a herramientas internas de un espacio de negocio |
+| Servidor detrás de proxy | Con acceso en red, una petición reenviada por un proxy inverso o con `JARVIS_REQUIRE_LOGIN=1` (por defecto en Docker) exige sesión aunque llegue por loopback; antes entraba como propietario. Probado en pytest y en el contenedor |
 | Apagado desde el panel | `POST /api/shutdown` detiene API y worker cuando se inició con el lanzador |
 | Instalación Unix | `scripts/setup.sh` + `scripts/start.sh` desde un clon limpio (ver ACCEPTANCE.md) |
 
@@ -64,11 +65,11 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Onda del núcleo con nivel real del micrófono | Implementada con Web Audio; sin probar con micrófono real |
 | Voz en el navegador (pulsar para hablar, lectura de respuestas) | El navegador de pruebas no ofrece reconocimiento ni micrófono. Probado solo el respaldo a texto y que el micrófono no aparece abierto |
 | Sección Shopify | Validada estructuralmente; **no instalada en una tienda ni en un tema real** |
-| Todas las plantillas de Apps conectadas | Escritas según la documentación pública de cada servicio. **Ninguna se ha probado con una cuenta real**: rutas, versiones de API y permisos pueden requerir ajuste |
+| Todas las plantillas de Apps conectadas | Contrastadas el 2026-11-11 con la documentación oficial de versiones: Shopify pasa a `2026-10` y Meta a `v26.0` (la `v21.0` de anuncios había caducado); Notion `2022-06-28` sigue admitida. **Ninguna se ha probado con una cuenta real**: rutas, versiones de API y permisos pueden requerir ajuste |
 | OAuth con Google u otro proveedor real | Probado solo con un servidor de autorización simulado |
 | Claude y OpenAI reales | Sin clave ni red hacia ellos durante el desarrollo |
 | Ventana de aplicación (`--app`, pywebview) | Comprobado solo el respaldo: sin pywebview abre el navegador y el apagado funciona. **La ventana no se ha visto en ningún sistema.** El acceso directo de Windows (`scripts/windows/acceso_directo.ps1`) no se ha ejecutado |
-| Docker (`Dockerfile`, `docker-compose.yml`) | Escritos; **no construidos ni ejecutados** (sin servicio Docker en el entorno) |
+| Docker (`Dockerfile`, `docker-compose.yml`) | Imagen construida y contenedor arrancado en pruebas: interfaz, inicio de sesión obligatorio, API, worker y persistencia tras reinicio. **Sin comprobar:** la instalación de FFmpeg (`apt-get`), bloqueada por la red del entorno, y `docker compose` como tal (se usó `docker build` + `docker run`) |
 | Servidor MCP con un cliente real (Claude Desktop u otro) | Probado solo el protocolo con mensajes simulados |
 | Apple Health con una exportación real | Probado con un XML de ejemplo con la estructura documentada |
 | Calidad de los resultados con modelos reales | Los prompts no se han evaluado con ningún modelo real |

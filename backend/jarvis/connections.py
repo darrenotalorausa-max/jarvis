@@ -44,7 +44,7 @@ PROVIDERS = {
                       "help": "Requiere instalar el paquete opcional faster-whisper; el modelo se descarga la primera vez."},
     "telegram": {"label": "Telegram (avisos y órdenes desde el celular)", "base_url": "https://api.telegram.org", "needs_secret": True, "local": False,
                  "capabilities": ["notificacion"], "optional": [], "help": "Bot propio creado con @BotFather. La prueba envía un mensaje real a tu chat."},
-    "whatsapp": {"label": "WhatsApp Business (Cloud API de Meta)", "base_url": "https://graph.facebook.com/v21.0", "needs_secret": True, "local": False,
+    "whatsapp": {"label": "WhatsApp Business (Cloud API de Meta)", "base_url": "https://graph.facebook.com/v26.0", "needs_secret": True, "local": False,
                  "capabilities": ["notificacion"], "optional": [],
                  "help": "Solo avisos salientes. Meta solo entrega texto libre si escribiste al número en las últimas 24 h; fuera de esa ventana exige plantillas."},
     "ntfy": {"label": "ntfy (notificaciones push al celular)", "base_url": "https://ntfy.sh", "needs_secret": False, "local": False,

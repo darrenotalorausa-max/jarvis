@@ -21,7 +21,7 @@ A = lambda id_, label, method, path, write=False, query=None, body=None: {"id": 
 GOOGLE = {"auth_url": "https://accounts.google.com/o/oauth2/v2/auth", "token_url": "https://oauth2.googleapis.com/token", "extra": {"access_type": "offline", "prompt": "consent"}}
 
 PRESETS: dict[str, dict] = {
-    "shopify": {"label": "Shopify (Admin API)", "base_url": "https://TU-TIENDA.myshopify.com/admin/api/2024-10", "auth": {"type": "header", "name": "X-Shopify-Access-Token"},
+    "shopify": {"label": "Shopify (Admin API)", "base_url": "https://TU-TIENDA.myshopify.com/admin/api/2026-10", "auth": {"type": "header", "name": "X-Shopify-Access-Token"},
                 "credential": "Token de acceso de una app personalizada de tu tienda (Configuración → Apps → Desarrollar apps).",
                 "actions": [A("tienda", "Datos de la tienda", "GET", "/shop.json"), A("productos", "Listar productos", "GET", "/products.json", query={"limit": "{limite}"}),
                             A("pedidos", "Listar pedidos", "GET", "/orders.json", query={"status": "any", "limit": "{limite}"}),
@@ -41,7 +41,7 @@ PRESETS: dict[str, dict] = {
     "github": {"label": "GitHub", "base_url": "https://api.github.com", "auth": {"type": "bearer"}, "headers": {"Accept": "application/vnd.github+json"}, "credential": "Token personal de acceso (fine-grained, solo lectura).",
                "actions": [A("yo", "Mi usuario", "GET", "/user"), A("repos", "Mis repositorios", "GET", "/user/repos", query={"per_page": "{limite}"}),
                            A("issues", "Issues de un repositorio", "GET", "/repos/{propietario}/{repo}/issues")]},
-    "meta": {"label": "Meta (Ads e Instagram, Graph API)", "base_url": "https://graph.facebook.com/v21.0", "auth": {"type": "bearer"},
+    "meta": {"label": "Meta (Ads e Instagram, Graph API)", "base_url": "https://graph.facebook.com/v26.0", "auth": {"type": "bearer"},
              "credential": "Token de acceso de usuario del sistema con ads_read e instagram_basic.",
              "actions": [A("cuentas_publicitarias", "Cuentas publicitarias", "GET", "/me/adaccounts", query={"fields": "name,account_status,currency"}),
                          A("rendimiento", "Rendimiento de anuncios (7 días)", "GET", "/{cuenta_publicitaria}/insights", query={"fields": "spend,impressions,clicks,ctr,cpc", "date_preset": "last_7d"}),

@@ -1,18 +1,20 @@
 import { useEffect, useRef, useState } from "react";
-import { api, ApiError, fmtDate } from "../api";
+import { api, ApiError } from "../api";
 import { useApp, useData } from "../store";
 import { Core, type CoreState, type DialItem } from "../components/Core";
 import { cue } from "../sound";
-import { JobList } from "../components/shared";
-import { Badge, Btn, Check, FieldRow, Panel, Select, Skeleton, Stat } from "../components/ui";
+import { Check, FieldRow, Select, Skeleton } from "../components/ui";
 
 const DIAL: DialItem[] = [
-  { id: "negocios", code: "NEGOCIOS", label: "Centro de negocios" }, { id: "oportunidades", code: "OPORT", label: "Mesa de oportunidades" }, { id: "leads", code: "LEADS", label: "Leads y ofertas B2B" },
-  { id: "contenido", code: "CONTEN", label: "Fábrica de contenido" }, { id: "video", code: "VIDEO", label: "Editor audiovisual" }, { id: "shopify", code: "SHOP", label: "Constructor Shopify" },
-  { id: "clipping", code: "CLIP", label: "Clipping" }, { id: "revision", code: "REVISAR", label: "Revisión y aprobación" }, { id: "proyectos", code: "PROYEC", label: "Proyectos, marcas y biblioteca" },
-  { id: "operaciones", code: "ECONOM", label: "Operaciones y economía" }, { id: "personal", code: "PERSONAL", label: "Espacio personal" }, { id: "biblioteca", code: "BIBLIO", label: "Biblioteca" },
-  { id: "conexiones", code: "CONEX", label: "Conexiones" }, { id: "sistema", code: "SISTEMA", label: "Trabajos, uso y diagnóstico" },
+  { id: "negocios", short: "Negocios", label: "Centro de negocios" }, { id: "oportunidades", short: "Oportunidades", label: "Mesa de oportunidades" }, { id: "leads", short: "Leads", label: "Leads y ofertas B2B" },
+  { id: "contenido", short: "Contenido", label: "Fábrica de contenido" }, { id: "video", short: "Video", label: "Editor audiovisual" }, { id: "shopify", short: "Shopify", label: "Constructor Shopify" },
+  { id: "clipping", short: "Clipping", label: "Clipping" }, { id: "revision", short: "Revisión", label: "Revisión y aprobación" }, { id: "proyectos", short: "Proyectos", label: "Proyectos, marcas y biblioteca" },
+  { id: "operaciones", short: "Economía", label: "Operaciones y economía" }, { id: "personal", short: "Personal", label: "Espacio personal" }, { id: "biblioteca", short: "Biblioteca", label: "Biblioteca" },
+  { id: "conexiones", short: "Conexiones", label: "Conexiones" }, { id: "apps", short: "Apps", label: "Apps conectadas" }, { id: "sistema", short: "Sistema", label: "Trabajos, uso y diagnóstico" },
 ];
+/** Hora si es de hoy; si no, día y mes. */
+const when = (iso?: string | null) => { if (!iso) return ""; const d = new Date(iso); return d.toDateString() === new Date().toDateString() ? d.toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" }) : d.toLocaleDateString("es", { day: "numeric", month: "short" }); };
+const TONE: Record<string, string> = { running: "live", completed: "ok", failed: "bad", cancelled: "mute" };
 type Msg = { id: number | string; role: string; content: string; data?: any; created_at?: string };
 type VoicePrefs = { stt: string; tts: string; autoSend: boolean };
 
@@ -201,103 +203,107 @@ export function Command() {
   const sttReady = prefs.stt === "navegador" ? !!SR : prefs.stt === "servidor" ? canRecord : false;
   const disp = overview.data?.disponibilidad || {};
 
+  const rows: [string, number, boolean][] = p ? [["Por aprobar", p.por_aprobar, p.por_aprobar > 0], ["Borradores", p.borradores, false], ["Tareas abiertas", p.tareas_abiertas, p.tareas_vencidas > 0], ["Trabajos en espera", p.trabajos_en_espera, p.trabajos_en_espera > 0]] : [];
+  const submit = () => send(text, heard.current && text === heard.current ? "voz" : "texto");
+
   return (
     <div className="command">
-      <div className="stack">
-        <Panel title="Pendiente" actions={<Btn small onClick={() => send("Resume lo pendiente")}>Resumir</Btn>}>
+      <aside className="hud" aria-label="Pendiente y capacidades">
+        <section className="hud__sec">
+          <header className="hud__h"><h2>Pendiente</h2><button className="hud__link" onClick={() => send("Resume lo pendiente")}>Resumir</button></header>
           {!p ? <Skeleton /> : <>
-            <div className="stats">
-              <Stat label="Por aprobar" value={p.por_aprobar} tone={p.por_aprobar ? "amber" : undefined} />
-              <Stat label="Borradores" value={p.borradores} />
-              <Stat label="Tareas abiertas" value={p.tareas_abiertas} hint={p.tareas_vencidas ? `${p.tareas_vencidas} vencidas` : undefined} />
-              <Stat label="Trabajos en espera" value={p.trabajos_en_espera} tone={p.trabajos_en_espera ? "amber" : undefined} />
-            </div>
-            {p.detalle.por_aprobar.map((d: any) => <div key={d.id} className="small" style={{ marginTop: 8 }}><button className="linkbtn" onClick={() => nav(`revision/${d.id}`)}>{d.titulo}</button> <span className="muted">· {d.tipo}</span></div>)}
-            {p.detalle.en_espera.map((j: any) => <p key={j.id} className="note note--amber wrap">{j.titulo}: {j.motivo}</p>)}
+            {rows.map(([name, n, warn]) => <div key={name} className="hud__row"><span>{name}</span><b className={warn ? "amber" : undefined}>{n}</b></div>)}
+            {p.tareas_vencidas > 0 && <p className="hud__note amber">{p.tareas_vencidas} tarea(s) vencida(s).</p>}
+            {p.detalle.por_aprobar.map((d: any) => <p key={d.id} className="hud__note"><button className="linkbtn" onClick={() => nav(`revision/${d.id}`)}>{d.titulo}</button> <span className="muted">{d.tipo}</span></p>)}
+            {p.detalle.en_espera.map((j: any) => <p key={j.id} className="hud__note amber wrap">{j.titulo}: {j.motivo}</p>)}
           </>}
-        </Panel>
-        <Panel title={`Capacidades en «${space.name}»`} actions={<Btn small onClick={() => nav("conexiones")}>Conexiones</Btn>}>
-          {Object.entries(boot.capabilities).map(([id, name]) => (
-            <div key={id} className="check-row" style={{ gridTemplateColumns: "1fr auto" }}>
-              <div>{name}{disp[id]?.conexiones?.length > 0 && <div className="small muted">{disp[id].conexiones.join(", ")}</div>}</div>
-              <Badge value={disp[id]?.disponible ? "ok" : "mute"} text={disp[id]?.disponible ? "Disponible" : "No configurada"} />
-            </div>
-          ))}
-          <p className="note">Sin proveedores de IA siguen funcionando proyectos, archivos, tareas, revisión, importación/exportación, video con FFmpeg y los comandos directos.</p>
-        </Panel>
-      </div>
+        </section>
+        <section className="hud__sec">
+          <header className="hud__h"><h2>Capacidades en «{space.name}»</h2><button className="hud__link" onClick={() => nav("conexiones")}>Conexiones</button></header>
+          {Object.entries(boot.capabilities).map(([id, name]) => {
+            const on = !!disp[id]?.disponible;
+            return <div key={id} className={`hud__cap${on ? " hud__cap--on" : ""}`}><i aria-hidden="true" /><span>{name}</span><em>{on ? (disp[id].conexiones || []).join(", ") || "Disponible" : "No configurada"}</em></div>;
+          })}
+          <p className="hud__note">Sin IA siguen funcionando proyectos, archivos, tareas, revisión, importación, video y las órdenes directas.</p>
+        </section>
+      </aside>
 
       <div className="command__center">
         <Core state={state} detail={detail} progress={progress} running={running} count={awaiting} levelRef={level} dial={DIAL} />
-        <Panel className="grid" title="Jarvis">
-          <div className="chat" aria-live="polite">
-            {!msgs.length && <p className="muted small">Escribe una orden o mantén pulsado el micrófono. Ejemplos: «Busca oportunidades en accesorios para mascotas», «Resume lo pendiente», «tarea: llamar al gestor», «ayuda».</p>}
-            {msgs.map((m) => (
-              <div key={m.id} className={`msg msg--${m.role}`}>
-                {m.content}
-                {m.role === "jarvis" && m.data && (
-                  <span className="msg__meta">
-                    {m.data.job && <><button className="linkbtn" onClick={() => nav(`sistema/${m.data.job.id}`)}>{m.data.job.id}</button> · {m.data.job.status_label} · </>}
-                    {m.data.deliverables?.map((d: string) => <button key={d} className="linkbtn" onClick={() => nav(`revision/${d}`)}>{d} </button>)}
-                    {m.data.mode === "modelo" ? `interpretado por ${m.data.model}` : m.data.mode === "comando" ? "comando directo, sin modelo" : m.data.mode === "sin_modelo" ? "sin modelo disponible" : ""}
-                    {m.created_at ? ` · ${fmtDate(m.created_at)}` : ""}
-                  </span>
-                )}
-              </div>
-            ))}
-            <div ref={chatEnd} />
-          </div>
-          <form className="composer" onSubmit={(e) => { e.preventDefault(); send(text, heard.current && text === heard.current ? "voz" : "texto"); }}>
-            <label className="sr" htmlFor="orden">Orden para Jarvis</label>
-            <textarea id="orden" className="input" rows={2} value={text} placeholder="Escribe una orden… (Intro para enviar)" onChange={(e) => setText(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(text, heard.current && text === heard.current ? "voz" : "texto"); } }} />
-            <button type="button" className="mic" aria-pressed={listening} aria-label={listening ? "Micrófono abierto: suelta para terminar" : "Mantén pulsado para hablar"} disabled={!sttReady || busy}
-              title={sttReady ? "Mantén pulsado para hablar" : "Voz no disponible: configúrala abajo"}
-              onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); startListening(); }} onPointerUp={stopListening} onPointerCancel={stopListening}
-              onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); startListening(); } }} onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") stopListening(); }}>
-              <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-            </button>
-            <Btn kind="primary" type="submit" busy={busy} disabled={!text.trim()}>Enviar</Btn>
-          </form>
-          <div className="row" style={{ justifyContent: "space-between" }}>
-            <span className={`micstate${listening ? " micstate--on" : ""}`}><i />{listening ? "MICRÓFONO ABIERTO" : "Micrófono cerrado"}</span>
-            <span className="row">
-              {speaking && <Btn small onClick={stopSpeaking}>Silenciar</Btn>}
-              <Btn small kind="ghost" onClick={() => setShowVoice(!showVoice)}>Voz</Btn>
-              <Btn small kind="ghost" onClick={async () => { await run(api("/assistant/history", { method: "DELETE", query: { space: space.id } }), "Conversación borrada"); setMsgs([]); }}>Borrar conversación</Btn>
-            </span>
-          </div>
-          {showVoice && (
-            <div className="stack">
-              <div className="form">
-                <FieldRow label="Entrada de voz" hint={prefs.stt === "navegador" ? "El reconocimiento del navegador puede enviar el audio al servicio del fabricante del navegador." : prefs.stt === "servidor" ? "El audio se envía al proveedor de transcripción configurado y se elimina al terminar." : "Solo texto."}>
-                  <Select value={prefs.stt} onChange={(v) => savePrefs({ stt: v })} options={[["ninguno", "Desactivada"], ["navegador", `Reconocimiento del navegador${SR ? "" : " (no disponible aquí)"}`], ["servidor", `Transcripción configurada en Conexiones${canRecord ? "" : " (sin grabación en este navegador)"}`]]} />
-                </FieldRow>
-                <FieldRow label="Respuesta por voz" hint="La respuesta por texto siempre está disponible.">
-                  <Select value={prefs.tts} onChange={(v) => savePrefs({ tts: v })} options={[["ninguno", "Desactivada"], ["navegador", `Voz del sistema/navegador${canSpeak ? "" : " (no disponible aquí)"}`], ["elevenlabs", "ElevenLabs (requiere conexión configurada)"]]} />
-                </FieldRow>
-              </div>
-              <Check checked={prefs.autoSend} onChange={(v) => savePrefs({ autoSend: v })}>Enviar la orden al soltar el micrófono (si no, la transcripción queda editable antes de enviar)</Check>
-              <p className="note">Jarvis no escucha de forma permanente ni guarda grabaciones: el micrófono solo se abre mientras mantienes pulsado el botón, y el audio temporal se borra tras transcribirlo.</p>
+        <div className="chat" aria-live="polite">
+          {!msgs.length && <p className="chat__hint">Escribe una orden o mantén pulsado el micrófono. Por ejemplo: «Busca oportunidades en accesorios para mascotas», «Resume lo pendiente», «tarea: llamar al gestor» o «ayuda».</p>}
+          {msgs.map((m) => (
+            <div key={m.id} className={`msg msg--${m.role}${m.data?.error ? " msg--error" : ""}`}>
+              {m.content}
+              {m.role === "jarvis" && m.data && (
+                <span className="msg__meta">
+                  {m.data.job && <><button className="linkbtn" onClick={() => nav(`sistema/${m.data.job.id}`)}>{m.data.job.id}</button> · {m.data.job.status_label} · </>}
+                  {m.data.deliverables?.map((d: string) => <button key={d} className="linkbtn" onClick={() => nav(`revision/${d}`)}>{d} </button>)}
+                  {m.data.mode === "modelo" ? `interpretado por ${m.data.model}` : m.data.mode === "comando" ? "orden directa, sin modelo" : m.data.mode === "sin_modelo" ? "sin modelo disponible" : ""}
+                  {m.created_at ? ` · ${when(m.created_at)}` : ""}
+                </span>
+              )}
             </div>
-          )}
-        </Panel>
+          ))}
+          <div ref={chatEnd} />
+        </div>
+        <form className="composer" onSubmit={(e) => { e.preventDefault(); submit(); }}>
+          <label className="sr" htmlFor="orden">Orden para Jarvis</label>
+          <textarea id="orden" rows={1} value={text} placeholder="Dile algo a Jarvis" onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }} />
+          <button type="button" className="mic" aria-pressed={listening} aria-label={listening ? "Micrófono abierto: suelta para terminar" : "Mantén pulsado para hablar"} disabled={!sttReady || busy}
+            title={sttReady ? "Mantén pulsado para hablar" : "Voz no disponible: actívala en «Voz»"}
+            onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); startListening(); }} onPointerUp={stopListening} onPointerCancel={stopListening}
+            onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); startListening(); } }} onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") stopListening(); }}>
+            <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
+          </button>
+          <button type="submit" className="send" disabled={!text.trim() || busy} aria-label="Enviar" title="Enviar (Intro)">
+            <svg viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" /></svg>
+          </button>
+        </form>
+        <div className="command__foot">
+          <span className={`micstate${listening ? " micstate--on" : ""}`}><i />{listening ? "Micrófono abierto" : "Micrófono cerrado"}</span>
+          <span className="row">
+            {speaking && <button className="hud__link" onClick={stopSpeaking}>Silenciar</button>}
+            <button className="hud__link" aria-expanded={showVoice} onClick={() => setShowVoice(!showVoice)}>Voz</button>
+            <button className="hud__link" onClick={async () => { await run(api("/assistant/history", { method: "DELETE", query: { space: space.id } }), "Conversación borrada"); setMsgs([]); }}>Borrar conversación</button>
+          </span>
+        </div>
+        {showVoice && (
+          <div className="hud__voice stack">
+            <div className="form">
+              <FieldRow label="Entrada de voz" hint={prefs.stt === "navegador" ? "El reconocimiento del navegador puede enviar el audio al servicio del fabricante del navegador." : prefs.stt === "servidor" ? "El audio se envía al proveedor de transcripción configurado y se elimina al terminar." : "Solo texto."}>
+                <Select value={prefs.stt} onChange={(v) => savePrefs({ stt: v })} options={[["ninguno", "Desactivada"], ["navegador", `Reconocimiento del navegador${SR ? "" : " (no disponible aquí)"}`], ["servidor", `Transcripción configurada en Conexiones${canRecord ? "" : " (sin grabación en este navegador)"}`]]} />
+              </FieldRow>
+              <FieldRow label="Respuesta por voz" hint="La respuesta por texto siempre está disponible.">
+                <Select value={prefs.tts} onChange={(v) => savePrefs({ tts: v })} options={[["ninguno", "Desactivada"], ["navegador", `Voz del sistema/navegador${canSpeak ? "" : " (no disponible aquí)"}`], ["elevenlabs", "ElevenLabs (requiere conexión configurada)"]]} />
+              </FieldRow>
+            </div>
+            <Check checked={prefs.autoSend} onChange={(v) => savePrefs({ autoSend: v })}>Enviar la orden al soltar el micrófono (si no, la transcripción queda editable antes de enviar)</Check>
+            <p className="note">Jarvis no escucha de forma permanente ni guarda grabaciones: el micrófono solo se abre mientras mantienes pulsado el botón, y el audio temporal se borra tras transcribirlo.</p>
+          </div>
+        )}
       </div>
 
-      <div className="stack">
-        <Panel title="Actividad" actions={<Btn small onClick={() => nav("sistema")}>Ver todo</Btn>}>
-          <JobList limit={7} empty="Sin trabajos en este espacio. Lanza uno desde una orden o desde cualquier módulo." />
-        </Panel>
-        <Panel title="Sistema">
-          <dl className="kv">
-            <dt>Worker</dt><dd>{overview.data?.worker_alive ? "activo" : "detenido"}</dd>
-            <dt>Agentes</dt><dd>{boot.settings.agents_paused ? <span className="amber">en pausa</span> : `${running} en ejecución`}</dd>
-            <dt>Espacio</dt><dd>{space.name} · {boot.ai_policies[space.ai_policy]}</dd>
-            <dt>Atajos</dt><dd><span className="mono">Ctrl K</span> buscar · anillo exterior del núcleo para ir a un módulo</dd>
-          </dl>
-          {!overview.data?.worker_alive && <p className="note note--amber">El worker no está activo: los trabajos quedarán en cola hasta que reinicies Jarvis con el lanzador.</p>}
-        </Panel>
-      </div>
+      <aside className="hud" aria-label="Actividad y sistema">
+        <section className="hud__sec">
+          <header className="hud__h"><h2>Actividad</h2><button className="hud__link" onClick={() => nav("sistema")}>Ver todo</button></header>
+          {!jobs.length ? <p className="hud__note">Aún no hay trabajos en este espacio. Lanza uno con una orden o desde cualquier módulo.</p>
+            : jobs.slice(0, 7).map((j) => (
+              <button key={j.id} className={`hud__act hud__act--${TONE[j.status] || (j.status.startsWith("waiting") ? "warn" : "mute")}`} onClick={() => nav(`sistema/${j.id}`)}>
+                <i aria-hidden="true" /><span>{j.title}</span><em>{j.status_label}{j.status === "running" ? ` · ${Math.round((j.progress || 0) * 100)} %` : ""} · {when(j.finished_at || j.created_at)}</em>
+              </button>
+            ))}
+        </section>
+        <section className="hud__sec">
+          <header className="hud__h"><h2>Sistema</h2></header>
+          <div className="hud__row hud__row--text"><span>Worker</span><b>{overview.data?.worker_alive ? "Activo" : "Detenido"}</b></div>
+          <div className="hud__row hud__row--text"><span>Agentes</span><b className={boot.settings.agents_paused ? "amber" : undefined}>{boot.settings.agents_paused ? "En pausa" : `${running} en ejecución`}</b></div>
+          <div className="hud__row hud__row--text"><span>IA en este espacio</span><b>{boot.ai_policies[space.ai_policy]}</b></div>
+          {!overview.data?.worker_alive && overview.data && <p className="hud__note amber">El worker no está activo: los trabajos quedan en cola hasta que reinicies Jarvis.</p>}
+          <p className="hud__note">Las marcas del anillo exterior llevan a cada módulo. <span className="mono">Ctrl K</span> busca en todo.</p>
+        </section>
+      </aside>
     </div>
   );
 }

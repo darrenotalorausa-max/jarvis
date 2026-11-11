@@ -31,6 +31,14 @@ def enabled() -> bool:
     return exposed() and len(code()) >= MIN_CODE
 
 
+def via_proxy(headers) -> bool:
+    """Con el acceso en red activo, una petición que llega por loopback pero reenviada por un proxy inverso
+    (o con JARVIS_REQUIRE_LOGIN=1, como en Docker) no es «este equipo»: debe iniciar sesión como cualquier otra."""
+    if not exposed():
+        return False
+    return os.environ.get("JARVIS_REQUIRE_LOGIN") == "1" or any(headers.get(h) for h in ("x-forwarded-for", "forwarded", "x-real-ip"))
+
+
 def is_loopback(host: str) -> bool:
     if host in ("testclient", "localhost"):
         return True

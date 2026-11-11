@@ -48,7 +48,7 @@ const step = (t) => console.log("·", t);
   await order.fill("Busca oportunidades en rascadores para gatos");
   await order.press("Enter");
   await page.getByText(/Trabajo creado: Oportunidades/).waitFor();
-  await page.locator(".badge", { hasText: "Esperando configuración" }).first().waitFor({ timeout: 20000 });
+  await page.locator(".hud__act--warn", { hasText: "Esperando configuración" }).first().waitFor({ timeout: 20000 });
   if ((await page.locator(".core--approval, .core--idle, .core--processing").count()) !== 1) problems.push("el núcleo no muestra un estado válido");
   await order.fill("Resume lo pendiente");
   await order.press("Enter");

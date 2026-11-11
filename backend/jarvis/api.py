@@ -45,7 +45,7 @@ async def guard(request: Request, call_next):
     sesión del propietario (código) o de un usuario con rol, y lista blanca de rutas y espacios para los roles limitados."""
     host = request.headers.get("host", "")
     client = request.client.host if request.client else "127.0.0.1"
-    remote = not access.is_loopback(client)
+    remote = not access.is_loopback(client) or access.via_proxy(request.headers)
     path, method = request.url.path, request.method
     user = {"id": "propietario", "username": "propietario", "role": "propietario", "spaces": None}
     if path.startswith("/api/ext/"):
