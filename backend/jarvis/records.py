@@ -150,6 +150,16 @@ KINDS: dict[str, dict] = {
         F("type", "Qué vigila", "select", options=["tareas_vencidas", "vencimientos", "suscripciones", "presupuesto", "clipping", "trabajos_fallidos", "por_aprobar", "sitio_web", "resumen_diario"], required=True),
         F("every_hours", "Cada cuántas horas", "number"), F("url", "URL (solo para «sitio web»)", "url"), F("days", "Días de antelación (vencimientos)", "number"),
         F("hour", "Hora del resumen diario (0–23)", "number"), F("notify", "Avisar al celular", "bool"), F("last_run", "Última ejecución"), F("last_result", "Último resultado")]},
+    "memory": {"label": "Recuerdo", "plural": "Memoria de Jarvis", "module": "proyectos", "statuses": ["activo"], "fields": [
+        F("body", "Qué debe recordar", "textarea", required=True),
+        F("category", "Tipo", "select", options=["preferencia", "negocio", "marca", "persona", "decision", "otro"]),
+        F("use_in_jobs", "Usarlo también en los trabajos (contenido, propuestas, expedientes)", "bool"), F("source", "Origen")]},
+    "schedule": {"label": "Agente con horario", "plural": "Agentes con horario", "module": "negocios", "statuses": ["activo", "pausado"], "free_merge": True, "fields": [
+        F("order", "Orden para Jarvis", "textarea", required=True),
+        F("frequency", "Frecuencia", "select", options=["diario", "semanal", "intervalo"], required=True),
+        F("hour", "Hora del día (0–23)", "number"), F("weekday", "Día (si es semanal)", "select", options=["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]),
+        F("every_hours", "Cada cuántas horas (si es por intervalo)", "number"), F("notify", "Avisar al celular con el resultado", "bool"),
+        F("last_run", "Última ejecución"), F("last_result", "Último resultado")]},
     "alert": {"label": "Alerta", "plural": "Alertas", "module": "negocios", "statuses": ["nueva", "vista", "resuelta"], "fields": [
         F("type", "Tipo"), F("detected", "Detectada"), F("monitor_id", "Monitor", "ref", ref="monitor"), F("notes", "Notas", "textarea")]},
     # --- Segundo cerebro
@@ -366,8 +376,8 @@ def update(record_id: str, space_id: str, patch: dict) -> dict:
     data = rec["data"]
     if "data" in patch:
         data = patch["data"] if spec.get("free_data") else {**rec["data"], **validate(rec["kind"], patch["data"], partial=True)}
-        if spec.get("free_merge") and "seen" in patch["data"]:
-            data["seen"] = patch["data"]["seen"]
+        if spec.get("free_merge"):  # claves internas que no forman parte del esquema visible
+            data.update({k: patch["data"][k] for k in ("seen", "runs") if k in patch["data"]})
         sets.append("data=?")
         params.append(dumps(data))
     for col in ("project_id", "brand_id"):

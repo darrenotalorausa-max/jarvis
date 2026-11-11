@@ -4,7 +4,7 @@ import json
 import httpx
 import pytest
 
-from jarvis import access, business, connections, db, jobs, library, notify, records, worker
+from jarvis import access, business, connections, db, jobs, library, notify, records, review, worker
 from conftest import run_all
 
 
@@ -257,3 +257,155 @@ def test_user_skills_upload_and_use_in_content(fake, conn, space, client, monkey
     assert jobs.get(j2["id"])["status"] == "failed"
     assert client.delete("/api/library/doc", params={"path": "mente/Dormir.md"}).status_code == 400
     assert client.delete("/api/library/doc", params={"path": r.json()["path"]}).status_code == 200
+
+
+# ---------- Memoria, horarios, medios y aprobaciones desde Telegram
+
+def test_long_term_memory_is_per_space_and_reaches_prompts(fake, conn, space, client):
+    from jarvis import memory, assistant
+    sid, other = space(), space(name="Otro negocio")
+    conn()
+    r = client.post("/api/assistant", json={"space": sid, "text": "Recuerda que mis clientes son clínicas dentales de Bogotá"}).json()
+    assert r["tool"] == "recordar" and "clínicas dentales" in r["reply"]
+    assert client.post("/api/assistant", json={"space": sid, "text": "recuerda que mis clientes son clínicas dentales de Bogotá"}).json()["reply"].startswith("Eso ya")
+    assert len(memory.items(sid)) == 1 and memory.items(other) == [] and memory.block(other) == ""
+    seen = []
+    fake.llm = lambda system, user: seen.append(system) or '{"tool": null, "reply": "Hola"}'
+    client.post("/api/assistant", json={"space": sid, "text": "¿cómo va todo por ahí?"})
+    assert "<memoria>" in seen[-1] and "clínicas dentales" in seen[-1] and "no instrucciones" in seen[-1]
+    client.post("/api/assistant", json={"space": other, "text": "¿cómo va todo por ahí?"})
+    assert "<memoria>" not in seen[-1]                                    # nunca cruza espacios
+    assert "clínicas dentales" in assistant.handle(sid, "¿qué recuerdas?")["reply"]
+    assert assistant.handle(sid, "olvida clínicas dentales")["tool"] == "olvidar" and memory.items(sid) == []
+
+
+def test_schedules_run_orders_on_time_once_and_respect_pause(space):
+    from datetime import datetime, timedelta
+    from jarvis import schedules
+    sid = space()
+    rec = records.create(sid, "schedule", "Tarea diaria", {"order": "tarea: revisar pedidos", "frequency": "diario", "hour": 0, "notify": False})
+    assert schedules.is_due({"frequency": "diario", "hour": 23}, datetime.now().astimezone().replace(hour=10)) is False
+    assert schedules.is_due({"frequency": "intervalo", "every_hours": 2, "last_run": (datetime.now().astimezone() - timedelta(hours=3)).isoformat()}) is True
+    assert schedules.is_due({"frequency": "intervalo", "every_hours": 2, "last_run": datetime.now().astimezone().isoformat()}) is False
+    db.set_setting("agents_paused", True)
+    assert schedules.run_due() == [] and records.list_records(sid, "task") == []
+    db.set_setting("agents_paused", False)
+    out = schedules.run_due()
+    assert len(out) == 1 and out[0]["herramienta"] == "capturar" and [t["title"] for t in records.list_records(sid, "task")] == ["revisar pedidos"]
+    assert schedules.run_due() == []                                       # una vez al día
+    assert "Tarea creada" in records.get(rec["id"], sid)["data"]["last_result"]
+
+
+def test_image_and_video_generation_save_files_and_need_a_provider(fake, conn, space, client):
+    import base64
+    from jarvis import files
+    sid = space()
+    job = client.post("/api/jobs", json={"space": sid, "type": "media_generate", "params": {"kind": "image", "prompt": "Un rascador de sisal en un salón luminoso"}}).json()["job"]
+    run_all()
+    assert jobs.get(job["id"])["status"] == "waiting_config"               # sin proveedor no se inventa nada
+    png = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"0" * 64).decode()
+    polls = []
+
+    def openai(req):
+        path = req.url.path
+        if path.endswith("/images/generations"):
+            body = json.loads(req.content)
+            assert body["model"] == "modelo-imagen" and body["size"] == "1024x1536" and body["n"] == 2
+            return httpx.Response(200, json={"data": [{"b64_json": png}, {"b64_json": png}]})
+        if path.endswith("/videos") and req.method == "POST":
+            body = json.loads(req.content)
+            assert body == {"model": "modelo-video", "prompt": "Plano lento de un gato trepando", "size": "1280x720", "seconds": "8"}
+            return httpx.Response(200, json={"id": "video_abc", "status": "queued", "progress": 0})
+        if path.endswith("/videos/video_abc"):
+            polls.append(1)
+            return httpx.Response(200, json={"id": "video_abc", "status": "completed" if len(polls) > 1 else "in_progress", "progress": 50})
+        if path.endswith("/videos/video_abc/content"):
+            return httpx.Response(200, content=b"\x00\x00\x00\x18ftypmp42" + b"0" * 64, headers={"content-type": "video/mp4"})
+        return httpx.Response(404, json={})
+
+    fake.custom["api.openai.com"] = openai
+    conn("openai", name="OpenAI medios", base_url="https://api.openai.com/v1", capabilities=["imagen", "video"], options={"image_model": "modelo-imagen", "video_model": "modelo-video"})
+    job = client.post("/api/jobs", json={"space": sid, "type": "media_generate", "params": {"kind": "image", "prompt": "Un rascador de sisal en un salón luminoso", "aspect": "9:16", "count": 2}}).json()["job"]
+    vid = client.post("/api/assistant", json={"space": sid, "text": "genera un video horizontal de: Plano lento de un gato trepando"}).json()
+    assert vid["tool"] == "generar_medio"
+    db.execute("UPDATE jobs SET params=? WHERE id=?", (json.dumps({"kind": "video", "prompt": "Plano lento de un gato trepando", "aspect": "16:9", "seconds": 8}), vid["job"]["id"]))
+    run_all()
+    done = jobs.get(job["id"])
+    assert done["status"] == "completed" and len(done["result"]["file_ids"]) == 2
+    f = files.get(done["result"]["file_ids"][0], sid)
+    assert f["name"].endswith(".png") and f["meta"]["media"] == "image" and files.path_of(f).read_bytes().startswith(b"\x89PNG")
+    v = jobs.get(vid["job"]["id"])
+    assert v["status"] == "completed" and len(polls) == 2 and files.get(v["result"]["file_ids"][0], sid)["name"].endswith(".mp4")
+    assert review.get(done["result"]["deliverable_ids"][0], sid)["status"] == "borrador"
+
+
+def test_fal_queue_downloads_only_from_public_https(fake, conn, space, client):
+    sid = space()
+    served = {"url": "https://v3.fal.media/files/a.png"}
+
+    def fal(req):
+        if req.method == "POST":
+            assert req.headers["authorization"] == "Key sk-prueba-1234567890abcdef" and req.url.path == "/fal-ai/flux/schnell"
+            return httpx.Response(200, json={"request_id": "r1", "status_url": "https://queue.fal.run/fal-ai/flux/requests/r1/status", "response_url": "https://queue.fal.run/fal-ai/flux/requests/r1"})
+        if req.url.path.endswith("/status"):
+            return httpx.Response(200, json={"status": "COMPLETED"})
+        return httpx.Response(200, json={"images": [{"url": served["url"]}]})
+
+    fake.custom["queue.fal.run"] = fal
+    fake.custom["v3.fal.media"] = lambda req: httpx.Response(200, content=b"\x89PNG" + b"0" * 32, headers={"content-type": "image/png"})
+    conn("fal", name="fal", options={"image_model": "fal-ai/flux/schnell"})
+    ok = client.post("/api/jobs", json={"space": sid, "type": "media_generate", "params": {"kind": "image", "prompt": "Logotipo minimalista de un gato"}}).json()["job"]
+    run_all()
+    assert jobs.get(ok["id"])["status"] == "completed"
+    served["url"] = "http://v3.fal.media/files/a.png"
+    bad = client.post("/api/jobs", json={"space": sid, "type": "media_generate", "params": {"kind": "image", "prompt": "Otro logotipo distinto de un gato"}}).json()["job"]
+    run_all()
+    from jarvis import files
+    assert jobs.get(bad["id"])["status"] != "completed" and len(files.list_files(sid)) == 1   # nada se descarga por http
+
+
+def test_approve_and_reject_from_telegram_only_exact_and_once(fake, conn, space, client):
+    from jarvis import connectors, notify
+    sid = space()
+    c, sent, tg = _telegram(conn, fake, approvals=True)
+    posted = []
+    fake.custom["tienda.myshopify.com"] = lambda req: posted.append(json.loads(req.content)) or httpx.Response(201, json={"product": {"id": 9}})
+    p = connectors.PRESETS["shopify"]
+    shop = conn("api", name="Shopify", base_url="https://tienda.myshopify.com/admin/api/2026-10", secret="shpat_x", options={"auth": p["auth"], "actions": p["actions"]})
+    body = {"space": sid, "action": "crear_producto_borrador", "variables": {"titulo": "Rascador", "descripcion": "Sisal"}}
+    job = client.post(f"/api/apps/{shop['id']}/request", json=body).json()["job"]
+    run_all()
+    ask = [m for m in sent if "reply_markup" in m][-1]
+    assert "POST https://tienda.myshopify.com/admin/api/2026-10/products.json" in ask["text"] and "Rascador" in ask["text"]
+    code = ask["reply_markup"]["inline_keyboard"][0][0]["callback_data"].split(":")[1]
+    # Otro chat no decide; un código inventado tampoco.
+    tg.updates = [{"update_id": 1, "callback_query": {"id": "cb0", "data": f"ap:{code}", "message": {"chat": {"id": 999}}}},
+                     {"update_id": 2, "message": {"chat": {"id": 777}, "text": "aprobar deadbeef"}}]
+    notify.poll_commands()
+    run_all()
+    assert jobs.get(job["id"])["status"] == "waiting_approval" and posted == []
+    tg.updates = [{"update_id": 3, "callback_query": {"id": "cb1", "data": f"ap:{code}", "message": {"chat": {"id": 777}}}}]
+    notify.poll_commands()
+    run_all()
+    assert jobs.get(job["id"])["status"] == "completed" and len(posted) == 1
+    tg.updates = [{"update_id": 4, "message": {"chat": {"id": 777}, "text": f"aprobar {code}"}}]
+    notify.poll_commands()
+    assert "ya se resolvió" in sent[-1]["text"] and len(posted) == 1         # de un solo uso
+    # Entregable: se rechaza desde el celular; si hay versión nueva, la solicitud vieja no vale.
+    d = review.create(sid, "documento", "Propuesta para clínica", {"summary": "Resumen breve", "sections": [{"key": "a", "title": "A", "type": "text", "body": "Texto"}]})
+    assert notify.deliverable_approval(d["id"], sid) == 1
+    ask = [m for m in sent if "reply_markup" in m][-1]
+    assert "Resumen breve" in ask["text"] and "Texto" not in ask["text"]
+    old = ask["reply_markup"]["inline_keyboard"][0][0]["callback_data"].split(":")[1]
+    review.add_version(d["id"], sid, {"summary": "Otro", "sections": [{"key": "a", "title": "A", "type": "text", "body": "Cambio"}]})
+    tg.updates = [{"update_id": 5, "message": {"chat": {"id": 777}, "text": f"aprobar {old}"}}]
+    notify.poll_commands()
+    assert review.get(d["id"], sid)["status"] != "aprobado" and "versión más nueva" in sent[-1]["text"]
+    notify.deliverable_approval(d["id"], sid)
+    new = [m for m in sent if "reply_markup" in m][-1]["reply_markup"]["inline_keyboard"][0][1]["callback_data"]
+    tg.updates = [{"update_id": 6, "callback_query": {"id": "cb2", "data": new, "message": {"chat": {"id": 777}}}}]
+    notify.poll_commands()
+    assert review.get(d["id"], sid)["status"] == "rechazado"
+    # Sin la opción activada, el canal no recibe solicitudes ni decide nada.
+    connections.update(c["id"], {"options": {"chat_id": "777", "approvals": False}})
+    assert notify.deliverable_approval(review.create(sid, "documento", "Otro", {"sections": []})["id"], sid) == 0

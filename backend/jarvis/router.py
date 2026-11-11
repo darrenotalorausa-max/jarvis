@@ -13,6 +13,7 @@ from datetime import timedelta
 
 from . import connections, db, secrets_store
 from .providers import llm as llm_api, search as search_api, voice as voice_api
+from .providers import media as media_api
 from .providers.base import ProviderError, SearchHit
 from .util import canonical_json, dumps, iso_in, loads, now, now_iso, sha256_text
 
@@ -279,6 +280,29 @@ def tts(ctx: Ctx, text: str) -> tuple[bytes, dict]:
 
     _, meta = _dispatch(ctx, "voz", "voz", call, est_cost_fn=lambda c: len(text) * (c.get("price_unit") or 0), cost_fn=_unit_cost)
     return holder["audio"], meta
+
+
+def image(ctx: Ctx, prompt: str, *, aspect: str = "1:1", n: int = 1, wait=lambda s, p: None) -> tuple[list, dict]:
+    holder = {}
+
+    def call(conn, secret):
+        holder["items"] = media_api.image(conn, secret, prompt, aspect=aspect, n=n, wait=wait)
+        return None, 0, 0, len(holder["items"]), {}
+
+    _, meta = _dispatch(ctx, "imagen", "medios", call, est_cost_fn=lambda c: n * (c.get("price_unit") or 0), cost_fn=_unit_cost)
+    return holder["items"], meta
+
+
+def video(ctx: Ctx, prompt: str, *, aspect: str = "16:9", seconds: int = 4, wait=lambda s, p: None) -> tuple[tuple, dict]:
+    """El precio por unidad de la conexión se interpreta como precio por segundo de video."""
+    holder = {}
+
+    def call(conn, secret):
+        holder["item"] = media_api.video(conn, secret, prompt, aspect=aspect, seconds=seconds, wait=wait)
+        return None, 0, 0, seconds, {}
+
+    _, meta = _dispatch(ctx, "video", "medios", call, est_cost_fn=lambda c: seconds * (c.get("price_unit") or 0), cost_fn=_unit_cost)
+    return holder["item"], meta
 
 
 def usage_summary() -> dict:

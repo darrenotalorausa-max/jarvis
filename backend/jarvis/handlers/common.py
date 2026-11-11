@@ -44,7 +44,9 @@ def ask_json(ctx, model_cls: type[BaseModel], *, system: str, user: str, max_tok
              prompt_version: str = "v1"):
     """Pide JSON al modelo y lo valida contra el esquema. Un único intento de reparación; si falla, se rechaza la salida."""
     schema_hint = json.dumps(model_cls.model_json_schema(), ensure_ascii=False)
-    full_system = f"{system}\n\n{UNTRUSTED_RULES}\n\nEsquema JSON obligatorio:\n{schema_hint}"
+    from .. import memory
+    space_id = getattr(ctx, "space_id", None)
+    full_system = f"{system}{memory.block(space_id, for_jobs=True) if space_id else ''}\n\n{UNTRUSTED_RULES}\n\nEsquema JSON obligatorio:\n{schema_hint}"
     text, meta = router.llm(ctx.router, system=full_system, user=user, json_mode=True, max_tokens=max_tokens, ttl_s=ttl_s, prompt_version=prompt_version)
     last_error = ""
     for attempt in range(2):

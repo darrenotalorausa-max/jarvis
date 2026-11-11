@@ -8,6 +8,7 @@ from datetime import date
 from pydantic import BaseModel, Field, ValidationError
 
 from . import db, jobs, records, review, router
+from . import memory
 from .handlers.common import norm
 from .util import dumps, loads, now_iso
 
@@ -205,6 +206,45 @@ def _capture(space_id: str, a: CaptureArgs) -> dict:
     return {"reply": f"Captura guardada ({rec['id']}).", "speak": "Anotado.", "record": rec["id"]}
 
 
+class MemArgs(BaseModel):
+    text: str = Field(min_length=3, max_length=600, description="Lo que hay que recordar o el texto del recuerdo a olvidar")
+
+
+class MediaArgs(BaseModel):
+    kind: str = Field(default="image", description="image o video")
+    prompt: str = Field(min_length=5, max_length=2000, description="Descripción de lo que se quiere generar")
+    aspect: str = Field(default="", description="1:1, 16:9 o 9:16")
+
+
+@tool("recordar", "Guarda en la memoria a largo plazo una preferencia, dato o decisión que el dueño pide recordar.", MemArgs, "registro")
+def _remember(space_id: str, a: MemArgs) -> dict:
+    rec, created = memory.remember(space_id, a.text)
+    return {"reply": f"Lo recordaré: {rec['data'].get('body') or rec['title']}" if created else "Eso ya lo tenía en la memoria.", "speak": "Lo recordaré." if created else "Ya lo tenía presente.", "record": rec["id"]}
+
+
+@tool("olvidar", "Borra de la memoria los recuerdos que contienen el texto indicado.", MemArgs, "registro")
+def _forget(space_id: str, a: MemArgs) -> dict:
+    hits = memory.forget(space_id, a.text)
+    if not hits:
+        return {"reply": f"No tengo ningún recuerdo que contenga «{a.text}».", "speak": "No encontré ese recuerdo."}
+    return {"reply": "Olvidado:\n" + "\n".join(f"· {r['data'].get('body') or r['title']}" for r in hits), "speak": f"Olvidé {len(hits)} recuerdo{'s' if len(hits) > 1 else ''}."}
+
+
+@tool("ver_memoria", "Muestra lo que Jarvis recuerda en este espacio.", NoArgs, "consulta")
+def _memories(space_id: str, a: NoArgs) -> dict:
+    rows = memory.items(space_id)
+    if not rows:
+        return {"reply": "Aún no me has pedido recordar nada en este espacio. Di «recuerda que …».", "speak": "Todavía no tengo recuerdos aquí."}
+    return {"reply": f"Recuerdo {len(rows)} cosa(s):\n" + "\n".join(f"· {r['data'].get('body') or r['title']}" for r in rows[:40]), "speak": f"Tengo {len(rows)} recuerdos; están en pantalla."}
+
+
+@tool("generar_medio", "Genera una imagen o un video a partir de una descripción, con el proveedor configurado.", MediaArgs, "trabajo")
+def _media(space_id: str, a: MediaArgs) -> dict:
+    kind = "video" if a.kind == "video" else "image"
+    job, created = jobs.enqueue(space_id, "media_generate", f"{'Video' if kind == 'video' else 'Imagen'}: {a.prompt[:70]}", {"kind": kind, "prompt": a.prompt, "aspect": a.aspect})
+    return _job_reply(job, created)
+
+
 @tool("pausar_agentes", "Pausa todos los agentes: no se inicia ningún trabajo nuevo hasta reanudar.", NoArgs, "registro")
 def _pause(space_id: str, a: NoArgs) -> dict:
     db.set_setting("agents_paused", True)
@@ -225,7 +265,7 @@ def tool_specs() -> list[dict]:
 
 HELP = ("Puedo: buscar oportunidades («busca oportunidades en …»), buscar leads («busca leads de … en …»), preparar propuestas, "
         "generar contenido («genera contenido para la marca …»), resumir lo pendiente, mostrar el estado de los trabajos, cancelar un trabajo, "
-        "mostrar costos y cuotas, listar las fuentes usadas, pausar o reanudar todos los agentes y anotar tareas o capturas («anota …», «tarea: …»).")
+        "mostrar costos y cuotas, listar las fuentes usadas, pausar o reanudar todos los agentes, anotar tareas o capturas («anota …», «tarea: …»), recordar cosas a largo plazo («recuerda que …», «olvida …», «¿qué recuerdas?») y generar imágenes o video («genera una imagen de …»).")
 
 _JOB_ID = re.compile(r"job_[0-9a-f]{12}")
 _DELIV_ID = re.compile(r"ent_[0-9a-f]{12}")
@@ -239,7 +279,21 @@ def parse_command(text: str) -> tuple[str, dict] | None:
     deliv = _DELIV_ID.search(raw)
     if re.match(r"^(tarea|pendiente)\s*:?\s+", raw, flags=re.I) and n.split()[0] == "tarea":
         return "capturar", {"text": re.sub(r"^\S+\s*:?\s*", "", raw), "as_task": True}
-    if m := re.match(r"^(anota|apunta|recuerda|captura)(?:\s+que)?\s*:?\s+(.+)$", raw, flags=re.I | re.S):
+    if m := re.match(r"^(?:recuerda|acu[eé]rdate|ten en cuenta|no olvides)(?:\s+de)?(?:\s+que)?\s*:?\s+(.+)$", raw, flags=re.I | re.S):
+        return "recordar", {"text": m.group(1)}
+    if m := re.match(r"^olvida(?:\s+(?:que|lo de|eso de))?\s*:?\s+(.+)$", raw, flags=re.I | re.S):
+        return "olvidar", {"text": m.group(1)}
+    if re.search(r"\bque\s+(recuerdas|sabes\s+de\s+mi)\b|\b(tu|mi|la)\s+memoria\b", n):
+        return "ver_memoria", {}
+    if m := re.match(r"^(?:genera|crea|haz|hazme|dibuja)\w*\s+(?:una?\s+)?(imagen|foto|ilustraci[oó]n|video|v[ií]deo|clip)\s+(?:de|del|con|sobre|que)?\s*(.+)$", raw, flags=re.I | re.S):
+        kind = "video" if norm(m.group(1)) in ("video", "clip") else "image"
+        args = {"kind": kind, "prompt": re.sub(r"^(?:en\s+)?(?:formato\s+)?(?:vertical|horizontal|cuadrad[oa])\s+(?:de|del|con|sobre)?\s*:?\s*", "", m.group(2).strip(), flags=re.I) or m.group(2).strip()}
+        if re.search(r"\bvertical\b|9:16", n):
+            args["aspect"] = "9:16"
+        elif re.search(r"\bhorizontal\b|16:9", n):
+            args["aspect"] = "16:9"
+        return "generar_medio", args
+    if m := re.match(r"^(anota|apunta|captura)(?:\s+que)?\s*:?\s+(.+)$", raw, flags=re.I | re.S):
         return "capturar", {"text": m.group(2)}
     if re.search(r"\b(pausa|deten|para)\w*\s+(a\s+)?(todos\s+)?(los\s+)?agentes", n):
         return "pausar_agentes", {}
@@ -325,7 +379,7 @@ def _via_model(space_id: str, text: str) -> dict:
               "Decide si la petición del usuario corresponde a UNA de las herramientas disponibles. Responde solo con JSON: "
               "{\"tool\": nombre o null, \"args\": {…}, \"reply\": texto breve si no hay herramienta}. "
               "No afirmes haber hecho nada: las acciones las ejecuta el sistema. No inventes datos del usuario ni resultados. "
-              f"Herramientas: {specs}")
+              f"Herramientas: {specs}" + memory.block(space_id))
     try:
         raw, meta = router.llm(router.Ctx(space_id=space_id, limits={"max_calls": 2, "max_tokens": 6000, "max_cost_usd": 0.05}),
                                system=system, user=text, json_mode=True, max_tokens=400)

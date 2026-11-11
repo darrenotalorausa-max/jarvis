@@ -9,7 +9,7 @@ def _opts(conn: dict) -> dict:
     return conn.get("options") or {}
 
 
-def send(conn: dict, secret: str | None, text: str, title: str = "Jarvis OS") -> None:
+def send(conn: dict, secret: str | None, text: str, title: str = "Jarvis OS", buttons: list[tuple[str, str]] | None = None) -> None:
     provider, url, o = conn["provider"], conn["base_url"], _opts(conn)
     what = f"Aviso ({conn.get('name') or provider})"
     text = text[:3500]
@@ -17,8 +17,10 @@ def send(conn: dict, secret: str | None, text: str, title: str = "Jarvis OS") ->
         if provider == "telegram":
             if not o.get("chat_id"):
                 raise ProviderError("config", "Falta el chat ID de Telegram.")
-            base.json_body(base.send(cli, "POST", f"{url}/bot{secret or ''}/sendMessage", what,
-                                     json={"chat_id": str(o["chat_id"]), "text": f"{title}\n{text}", "disable_web_page_preview": True}), what)
+            body = {"chat_id": str(o["chat_id"]), "text": f"{title}\n{text}", "disable_web_page_preview": True}
+            if buttons:
+                body["reply_markup"] = {"inline_keyboard": [[{"text": t, "callback_data": d[:64]} for t, d in buttons]]}
+            base.json_body(base.send(cli, "POST", f"{url}/bot{secret or ''}/sendMessage", what, json=body), what)
         elif provider == "whatsapp":
             if not (o.get("phone_number_id") and o.get("to")):
                 raise ProviderError("config", "Faltan el ID del número de WhatsApp Business y el número de destino.")
@@ -40,12 +42,23 @@ def send(conn: dict, secret: str | None, text: str, title: str = "Jarvis OS") ->
 
 
 def telegram_updates(conn: dict, secret: str | None, offset: int) -> list[dict]:
-    """Mensajes nuevos del bot (sondeo corto). Devuelve [{update_id, chat_id, text}]."""
+    """Mensajes y pulsaciones de botón nuevos del bot (sondeo corto). Devuelve [{update_id, chat_id, text, callback_id}]."""
     with base.client(15) as cli:
         data = base.json_body(base.send(cli, "GET", f"{conn['base_url']}/bot{secret or ''}/getUpdates", "Telegram",
-                                        params={"offset": offset, "timeout": 0, "allowed_updates": '["message"]'}), "Telegram")
+                                        params={"offset": offset, "timeout": 0, "allowed_updates": '["message","callback_query"]'}), "Telegram")
     out = []
     for u in data.get("result") or []:
+        cb = u.get("callback_query")
+        if cb:
+            chat = ((cb.get("message") or {}).get("chat") or {}).get("id", "")
+            out.append({"update_id": u.get("update_id", 0), "chat_id": str(chat), "text": str(cb.get("data") or ""), "callback_id": str(cb.get("id") or "")})
+            continue
         msg = u.get("message") or {}
-        out.append({"update_id": u.get("update_id", 0), "chat_id": str((msg.get("chat") or {}).get("id", "")), "text": msg.get("text") or ""})
+        out.append({"update_id": u.get("update_id", 0), "chat_id": str((msg.get("chat") or {}).get("id", "")), "text": msg.get("text") or "", "callback_id": ""})
     return out
+
+
+def telegram_ack(conn: dict, secret: str | None, callback_id: str, text: str = "") -> None:
+    """Cierra el indicador de carga del botón pulsado."""
+    with base.client(15) as cli:
+        base.send(cli, "POST", f"{conn['base_url']}/bot{secret or ''}/answerCallbackQuery", "Telegram", json={"callback_query_id": callback_id, "text": text[:180]})

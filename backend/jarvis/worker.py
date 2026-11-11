@@ -29,7 +29,7 @@ def handler(type_: str):
 
 
 def load_handlers() -> None:
-    from .handlers import opportunities, leads, content, video, shopify, clipping, exports, apps, study  # noqa: F401
+    from .handlers import opportunities, leads, content, video, shopify, clipping, exports, apps, study, media  # noqa: F401
 
 
 class JobCtx:
@@ -191,6 +191,8 @@ def run_forever(stop: threading.Event | None = None, poll: float = 1.0) -> None:
             try:
                 from . import monitors
                 monitors.run_due()
+                from . import schedules
+                schedules.run_due()
             except Exception:
                 log.warning("Fallo al ejecutar monitores")
         if time.monotonic() - last_beat > 5:

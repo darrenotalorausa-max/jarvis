@@ -10,6 +10,7 @@ NOTIFY_PROVIDERS = ("telegram", "whatsapp", "ntfy")
 CAPABILITIES = {
     "texto": "Texto", "extraccion": "Extracción estructurada (JSON)", "vision": "Visión (imágenes)",
     "busqueda": "Búsqueda web", "transcripcion": "Transcripción", "voz": "Síntesis de voz",
+    "imagen": "Generación de imágenes", "video": "Generación de video",
 }
 
 PROVIDERS = {
@@ -17,13 +18,13 @@ PROVIDERS = {
                "capabilities": ["texto", "extraccion"], "optional": ["vision"],
                "help": "Modelos ejecutados en tu equipo. Requiere Ollama instalado y un modelo descargado."},
     "gemini": {"label": "Gemini Developer API", "base_url": "https://generativelanguage.googleapis.com/v1beta", "needs_secret": True,
-               "local": False, "capabilities": ["texto", "extraccion"], "optional": ["vision"],
+               "local": False, "capabilities": ["texto", "extraccion"], "optional": ["vision", "imagen"],
                "help": "Clave de Google AI Studio. Los modelos, cuotas y condiciones dependen de tu cuenta."},
     "anthropic": {"label": "Claude (API de Anthropic)", "base_url": "https://api.anthropic.com", "needs_secret": True, "local": False,
                   "capabilities": ["texto", "extraccion"], "optional": ["vision"],
                   "help": "Clave de API de la consola de Anthropic (de pago por uso). Una suscripción de Claude.ai no incluye API."},
     "openai": {"label": "ChatGPT (API de OpenAI)", "base_url": "https://api.openai.com/v1", "needs_secret": True, "local": False,
-               "capabilities": ["texto", "extraccion"], "optional": ["vision", "transcripcion"],
+               "capabilities": ["texto", "extraccion"], "optional": ["vision", "transcripcion", "imagen", "video"],
                "help": "Clave de API de platform.openai.com (de pago por uso). ChatGPT Plus no incluye API."},
     "api": {"label": "Conector universal (cualquier API REST)", "base_url": "", "needs_secret": False, "local": False,
             "capabilities": ["api"], "optional": [], "help": "Conecta cualquier servicio con API: elige una plantilla o define tus propias acciones. Las acciones de escritura requieren tu aprobación."},
@@ -31,8 +32,11 @@ PROVIDERS = {
              "capabilities": ["texto", "extraccion"], "optional": ["transcripcion", "vision"],
              "help": "API con formato OpenAI. La transcripción requiere indicar un modelo de transcripción disponible en tu cuenta."},
     "openai_compat": {"label": "API compatible con OpenAI", "base_url": "", "needs_secret": True, "local": False,
-                      "capabilities": ["texto"], "optional": ["extraccion", "vision", "transcripcion"],
+                      "capabilities": ["texto"], "optional": ["extraccion", "vision", "transcripcion", "imagen", "video"],
                       "help": "«Compatible» describe el formato, no las capacidades: marca solo las que tu proveedor soporte."},
+    "fal": {"label": "fal.ai (imágenes y video con cualquier modelo de su catálogo)", "base_url": "https://queue.fal.run", "needs_secret": True, "local": False,
+            "capabilities": ["imagen"], "optional": ["video"],
+            "help": "Clave de fal.ai (de pago por uso). Indica el ID del modelo tal como aparece en su catálogo; la prueba de conexión no genera nada."},
     "brave": {"label": "Brave Search API", "base_url": "https://api.search.brave.com", "needs_secret": True, "local": False,
               "capabilities": ["busqueda"], "optional": [], "help": "La prueba de conexión consume una consulta."},
     "tavily": {"label": "Tavily", "base_url": "https://api.tavily.com", "needs_secret": True, "local": False,
@@ -256,6 +260,19 @@ def test(conn_id: str) -> dict:
                     set_status(conn_id, "operativa", None, quota=res.quota)
             else:
                 raise ProviderError("config", f"Credencial aceptada; hay {len(names)} modelos disponibles. Selecciona uno para completar la prueba.")
+        elif p == "fal":
+            from .providers import base as http
+            model = ((conn.get("options") or {}).get("image_model") or (conn.get("options") or {}).get("video_model") or "").strip("/ ")
+            if not model:
+                raise ProviderError("config", "Indica el modelo de imágenes o de video de fal.ai que quieres usar.")
+            owner_app = "/".join(model.split("/")[:2])
+            with http.client(20) as cli:
+                resp = cli.get(f"{conn['base_url'].rstrip('/')}/{owner_app}/requests/00000000-0000-0000-0000-000000000000/status", headers={"Authorization": f"Key {secret}"})
+            if resp.status_code in (401, 403):
+                raise ProviderError("auth", "fal.ai rechazó la clave.", http_status=resp.status_code)
+            if resp.status_code >= 500:
+                raise ProviderError("network", f"fal.ai respondió con un error ({resp.status_code}).", http_status=resp.status_code)
+            detail = "fal.ai aceptó la clave. No se generó nada: el modelo se comprobará en la primera generación."
         elif p in ("brave", "tavily"):
             hits = search.web_search(conn, secret, "prueba de conexión", count=1)
             detail = f"Búsqueda respondió con {len(hits)} resultado(s). Esta prueba consumió una consulta."

@@ -28,7 +28,7 @@ AI_POLICIES = {"solo_local": "Solo proveedores locales", "nube_permitida": "Nube
 JOB_TYPES = {
     "opportunity_research": "Investigación de oportunidades", "lead_search": "Búsqueda de leads", "lead_proposal": "Propuesta B2B",
     "content_batch": "Lote de contenido", "video_transcribe": "Transcripción de video", "video_suggest": "Sugerencia de momentos",
-    "video_render": "Exportación de video", "shopify_package": "Paquete Shopify", "clipping_import_url": "Importar campaña de clipping", "connector_action": "Acción en una app conectada", "study_plan": "Ruta de estudio",
+    "video_render": "Exportación de video", "shopify_package": "Paquete Shopify", "clipping_import_url": "Importar campaña de clipping", "connector_action": "Acción en una app conectada", "study_plan": "Ruta de estudio", "media_generate": "Generación de imagen o video",
     "external_export": "Envío externo",
 }
 SETTINGS_KEYS = {"user_name", "allow_paid", "onboarded", "voice", "min_cpm", "worker_concurrency", "business_types", "agents_paused"}
@@ -789,6 +789,17 @@ def shutdown():
         raise HTTPException(409, "Esta instancia no se inició con el lanzador; deténla desde su consola.")
     threading.Timer(0.4, stop).start()
     return {"ok": True}
+
+
+@app.post("/api/schedules/run")
+def schedule_run(body: dict = Body(...)):
+    """Ejecuta ahora un agente con horario (prueba manual)."""
+    _space(body.get("space"))
+    rec = records.get(str(body.get("id") or ""), body["space"])
+    if not rec or rec["kind"] != "schedule":
+        raise KeyError("horario")
+    from . import schedules
+    return schedules.run(rec, manual=True)
 
 
 # ---------- Importadores, tutor, notas y texto bíblico
