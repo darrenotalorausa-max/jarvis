@@ -33,8 +33,12 @@ def run(tool_id: str, space_id: str, inputs: dict | None = None) -> dict:
     return {"herramienta": tool_id, "titulo": TOOLS[tool_id]["label"], "resumen": "", "metricas": [], "tablas": [], "alertas": [], **out}
 
 
+# Herramientas que cambian registros al ejecutarse: nunca se lanzan solas (ni al abrir el panel ni como evidencia de una orden libre).
+ESCRIBEN = {"embudo", "churn", "utm", "salud_tienda", "mensajes", "radar", "vigia", "extracto", "contrato", "reunion", "llamada", "plan_estudio", "viaje", "paquete_skills", "reporte_marca"}
+
+
 def public() -> list[dict]:
-    return [{k: v for k, v in t.items() if k != "fn"} for t in TOOLS.values()]
+    return [{**{k: v for k, v in t.items() if k != "fn"}, "escribe": t["id"] in ESCRIBEN or bool(t["campos"]) and t["id"] in ("pasos", "lectura", "ingles")} for t in TOOLS.values()]
 
 
 # ---------- utilidades
@@ -765,7 +769,11 @@ def entrenamiento(space_id, inp):
 
 @tool("sueno", "Tendencia de sueño y recuperación")
 def sueno(space_id, inp):
-    ns = sorted(recs(space_id, "dd_sueno"), key=lambda x: x["data"].get("fecha") or "")
+    # Incluye las noches importadas de Apple Health (tipo «sleep» del motor), sin duplicar fechas.
+    propias = recs(space_id, "dd_sueno")
+    fechas = {x["data"].get("fecha") for x in propias}
+    ns = sorted(propias + [{"data": {"fecha": x["data"].get("date"), "horas": x["data"].get("hours"), "calidad": x["data"].get("quality")}} for x in recs(space_id, "sleep")
+                           if x["data"].get("date") not in fechas], key=lambda x: x["data"].get("fecha") or "")
     if len(ns) < 3:
         return {"resumen": "Hacen falta al menos tres noches registradas para ver una tendencia."}
     h = [n(x["data"].get("horas")) for x in ns]

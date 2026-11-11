@@ -14,10 +14,12 @@ from jarvis.providers.base import ProviderError
 from jarvis.security import safe_join
 from jarvis.util import new_id, now_iso
 
-from . import VERSION, catalog, engine, integrations, kinds, skills, tools
+from . import VERSION, catalog, engine, integrations, kinds, plans, skills, tools, tools2  # noqa: F401
 
 kinds.register()
 integrations.register()
+plans.register()
+japi.JOB_TYPES["dd_plan"] = "Plan de acciones externas"
 japi.JOB_TYPES["dd_run"] = "Orden de Doomsday"
 japi.JOB_TYPES["dd_clip"] = "Recorte de clip"
 app = japi.app
@@ -75,7 +77,7 @@ def overview():
     for mid, m in catalog.MODULES.items():
         e = ent.get(mid) or {}
         mods[mid] = {"registros": sum(rec.get((spaces[m["capa"]], k), 0) for k in m["kinds"]), "entregables": e.get("total", 0), "por_revisar": e.get("por_revisar") or 0, "ultimo": e.get("ultimo")}
-    estado = {r["status"]: r["c"] for r in db.query("SELECT status, COUNT(*) c FROM jobs WHERE type IN ('dd_run','dd_clip','media_generate','connector_action') GROUP BY status")}
+    estado = {r["status"]: r["c"] for r in db.query("SELECT status, COUNT(*) c FROM jobs WHERE type IN ('dd_run','dd_clip','dd_plan','media_generate','connector_action') GROUP BY status")}
     return {"modulos": mods, "trabajos": estado, "activos": sum(1 for v in mods.values() if v["registros"] or v["entregables"]),
             "por_revisar": sum(v["por_revisar"] for v in mods.values()), "skills_propias": sum(1 for s in skills.listing() if s["origen"] == "propia")}
 
@@ -97,7 +99,11 @@ def run_tool(tool_id: str, body: dict = Body(default={})):
     mod = _module(body.get("module") or "")
     if tool_id not in mod["tools"]:
         raise KeyError(tool_id)
-    return tools.run(tool_id, _space_of(mod, body.get("space")), body.get("inputs") or {})
+    sid = _space_of(mod, body.get("space"))
+    res = tools.run(tool_id, sid, {**(body.get("inputs") or {}), "_module": mod["id"]})
+    if body.get("guardar") and (res.get("secciones") or res.get("tablas")):
+        res["deliverable_id"] = plans.save_tool_result(sid, mod, res)["id"]
+    return res
 
 
 # ---------- Skills (X06)
@@ -191,7 +197,8 @@ def sync_shopify(body: dict = Body(...)):
         ship = (o.get("shipping_address") or {})
         records.create(sid, "dd_pedido", ref, {"ref": ref, "fecha": str(o.get("created_at") or "")[:10], "tienda": conn["name"],
                                                 "producto": (items[0].get("title") if items else None), "unidades": sum(int(i.get("quantity") or 0) for i in items) or 1,
-                                                "precio": o.get("total_price"), "ciudad": ship.get("city"), "campana": (o.get("source_name") or None)}, status=estado)
+                                                "precio": o.get("total_price"), "ciudad": ship.get("city"), "campana": (o.get("source_name") or None),
+                                                "tel_hash": plans.phone_hash(o.get("phone") or ship.get("phone") or "")}, status=estado)
         nuevos += 1
     db.audit("dd_sync_shopify", conn["id"], {"leidos": len(orders), "nuevos": nuevos})
     return {"leidos": len(orders), "nuevos": nuevos, "nota": "Shopify no informa la entrega COD ni el costo: completa estado, costo y fletes (a mano o importando el archivo de tu operador logístico)."}
@@ -213,6 +220,7 @@ def habit_check(body: dict = Body(...)):
 app.router.routes[:] = [r for r in app.router.routes if getattr(r, "path", "") != "/{full_path:path}"]
 app.include_router(router)
 app.include_router(integrations.router)
+app.include_router(plans.router)
 
 
 @app.get("/{full_path:path}")

@@ -231,6 +231,7 @@ COLS = {
     "flete": ("flete", "valor flete", "costo flete", "precio flete", "costo de envio", "valor envio", "envio"),
     "flete_devolucion": ("flete devolucion", "costo devolucion", "valor devolucion", "costo devolucion flete"),
     "comision": ("comision", "comisiones", "comision plataforma", "fee"),
+    "telefono": ("telefono", "celular", "telefono cliente", "telefono del cliente", "phone", "movil", "numero de telefono"),
     "transportadora": ("transportadora", "transportador", "carrier", "empresa de envio"),
     "valor_liquidado": ("valor liquidado", "liquidado", "valor pagado", "pagado", "utilidad pagada", "ganancia", "valor transferido", "transferido"),
 }
@@ -290,6 +291,11 @@ def import_logistics(space_id: str, text: str, commit: bool) -> dict:
             out["sin_estado"] += 1
         data = {k: v for k, v in {"ciudad": get("ciudad"), "producto": get("producto"), "fecha": get("fecha")[:10] if re.match(r"\d{4}-\d{2}-\d{2}", get("fecha")) else "",
                                   **{k: _money(get(k)) for k in ("precio", "costo_producto", "flete", "flete_devolucion", "comision", "unidades")}}.items() if v not in (None, "")}
+        if get("telefono"):
+            from .plans import phone_hash
+            h = phone_hash(get("telefono"))
+            if h:
+                data["tel_hash"] = h  # solo la huella: el número no se guarda
         prev = existing.get(ref)
         if prev:
             out["actualizados"] += 1

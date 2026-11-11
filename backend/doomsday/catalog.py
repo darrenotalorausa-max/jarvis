@@ -399,6 +399,26 @@ M("X10", "Simulador de escenarios", "Decides inversiones a ojo", "tres escenario
   acciones=[A("decision", "Analizar una inversión", "Estructura la decisión: supuestos explícitos, tres escenarios, qué tendría que ser verdad para ganar y la señal temprana para parar.",
               ["inversion:Inversión que evalúas:textarea"])])
 
+# Funcionalidad propia (sin IA) de cada módulo: herramientas deterministas, tipos de dato y panel especial añadidos sobre la definición base.
+EXTRA = {
+    "P03": (["mensajes"], [], "gmail"), "P05": (["pasos", "runbooks"], ["dd_paso"], None), "P09": (["decisiones"], [], None), "P10": (["runbooks", "pasos"], ["dd_paso"], None),
+    "G03": (["pasos"], [], None), "G09": (["pasos", "runbooks"], [], None), "M02": ([], [], "lanzar"), "M04": (["radar", "ficha_web"], [], None), "M05": (["vigia", "ficha_web"], ["dd_alerta"], None),
+    "M08": (["pasos"], ["dd_pedido"], "capi"), "C01": (["ideas"], [], None), "C02": (["perfil_voz"], [], None), "C03": (["hooks"], [], None), "C05": ([], [], "redes"), "C07": (["buscar"], [], None),
+    "C10": (["buscar", "perfil_voz"], [], None), "V02": (["propuesta", "casos"], [], None), "V03": (["reporte"], [], None), "V04": (["pasos"], [], None), "V05": (["mensajes"], [], None),
+    "V08": (["contrato", "cobros"], ["dd_firma"], None), "V10": (["casos"], [], None), "S01": (["tema"], [], "tema"), "S02": (["validacion"], [], None), "S03": (["mensajes", "buscar"], [], None),
+    "S05": (["paquete_skills", "tema"], [], None), "S06": (["paquete_skills"], [], None), "S09": (["reporte_marca"], [], None), "S10": (["buscar"], [], None), "A02": (["mensajes", "buscar"], [], None),
+    "A03": (["prospectos", "ficha_web"], [], None), "A05": (["ficha_web", "extracto", "buscar"], ["dd_fuente"], None), "A06": (["mensajes"], [], None), "A07": (["revision_codigo"], [], None),
+    "A08": (["lanzamientos", "pasos"], ["dd_paso"], None), "A10": (["buscar", "relacionadas"], [], None), "H01": ([], [], "salud"), "H02": ([], [], "salud"), "H03": (["comidas"], [], None),
+    "H04": (["ingles"], ["flashcard"], None), "H06": (["revision_codigo"], [], None), "H07": (["extracto", "buscar"], [], None), "H08": (["buscar", "relacionadas"], [], None),
+    "H10": (["plan_estudio"], ["dd_bloque"], None), "R01": (["lectura"], [], None), "R02": (["buscar"], [], "escritura"), "R05": (["reunion"], [], None), "R08": (["comunidad"], [], "discord"),
+    "R09": (["viaje"], [], None), "R10": (["llamada"], [], None), "X04": (["tokens_css"], [], None), "X06": (["paquete_skills"], [], "skills"), "X09": (["paquete_skills"], [], None),
+}
+for _id, (_tools, _kinds, _widget) in EXTRA.items():
+    MODULES[_id]["tools"] += [t for t in _tools if t not in MODULES[_id]["tools"]]
+    MODULES[_id]["kinds"] += [k for k in _kinds if k not in MODULES[_id]["kinds"]]
+    if _widget:
+        MODULES[_id]["widget"] = _widget
+
 assert len(MODULES) == 100, len(MODULES)
 
 # Entrega 4: los 20 mejores proyectos, en orden.

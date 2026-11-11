@@ -133,7 +133,7 @@ def dd_run(ctx):
 
     ctx.stage("contexto", 0.1, "Reuniendo datos del módulo")
     evidencia, nota_tool = None, ""
-    tool_id = act.get("herramienta") or next((t for t in mod["tools"] if tools.TOOLS[t]["auto"]), None)
+    tool_id = act.get("herramienta") or next((t for t in mod["tools"] if tools.TOOLS[t]["auto"] and t not in tools.ESCRIBEN), None)
     if tool_id:
         try:
             evidencia = tools.run(tool_id, ctx.space_id, inputs)
