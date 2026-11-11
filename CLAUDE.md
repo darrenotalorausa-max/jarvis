@@ -23,7 +23,8 @@ Para una instancia limpia de pruebas: `JARVIS_HOME=<carpeta vacía> JARVIS_SECRE
 - `records.py` registros tipados por esquema (`KINDS`) + CSV · `review.py` entregables, versiones, comprobaciones, aprobaciones, exportación
 - `webfetch.py` importador web seguro · `economy.py` · `backup.py` · `assistant.py` herramientas de Jarvis · `api.py` · `launch.py`
 - `connectors.py` conector universal (plantillas, OAuth, acciones) · `monitors.py` · `imports.py` (Apple Health, OFX) · `scripture.py` · `mcp_server.py` · `handlers/{apps,study}.py`
-- `notify.py` avisos al celular y órdenes por Telegram (`providers/notify.py`) · `access.py` acceso en red con código, usuarios y roles · `business.py` Centro de negocios · `life.py` indicadores personales y repaso espaciado · `library.py` biblioteca (`content/`)
+- `providers/media.py` + `handlers/media.py` imágenes y video por API · `memory.py` memoria a largo plazo · `schedules.py` agentes con horario
+- `notify.py` avisos al celular, órdenes y aprobaciones por Telegram (`providers/notify.py`) · `access.py` acceso en red con código, usuarios y roles · `business.py` Centro de negocios · `life.py` indicadores personales y repaso espaciado · `library.py` biblioteca (`content/`)
 
 Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`RecordsPanel` genera CRUD desde el esquema,
 `DeliverableView`, `shared`, `ui`, `Core`), `views/` (una por zona de navegación).
@@ -35,7 +36,9 @@ Frontend (`frontend/src`): `store.tsx` (estado global, SSE), `components/` (`Rec
 - Fuentes web/archivos = datos no confiables: van entre `<fuente>` y las citas se comprueban contra el texto (`quote_in_text`).
 - Acción externa ⇒ aprobación vigente y específica: `external_export` ligada a versión + destino (editar crea versión e invalida aprobaciones); `connector_action` ligada al hash exacto de la petición, de un solo uso. Leer de una app conectada no requiere aprobación; todo lo que no sea GET, sí.
 - Rutas nuevas de la API: decide en `access.allowed` qué rol las alcanza; por defecto solo el propietario.
-- Única excepción: avisos al propio dueño (`notify.py`), bajo la política que él configura en cada canal. Solo título, estado y motivo; nunca contenido de entregables ni datos de espacios personales.
+- Única excepción: avisos al propio dueño (`notify.py`), bajo la política que él configura en cada canal. Solo título, estado y motivo; nunca contenido de entregables ni datos de espacios personales. Si el dueño activa «aprobar desde este chat» (desactivado por defecto), ese Telegram recibe además el resumen del entregable o la petición exacta de la acción; la decisión solo vale desde el chat autorizado, una vez, y ligada a versión o hash.
+- La memoria (`memory.py`) es por espacio y entra en los prompts entre `<memoria>` como datos, no como instrucciones. Los agentes con horario solo ejecutan órdenes del asistente (herramientas internas) y respetan la pausa global.
+- Generar imágenes o video gasta saldo del usuario: solo a petición suya o de un horario que él creó, por el router (presupuesto y política del espacio). Las descargas de resultados pasan por `check_public_url`.
 - Una misión solo pasa a `completada_verificada` con criterio de cierre y evidencia (`records._check_rules`). Nunca se inventan tareas del manual DOOMSDAY.
 - `content/` es conocimiento del usuario y guías: las guías no afirman precios ni cuotas en cifras.
 - FFmpeg y cualquier binario: lista de argumentos validada, sin shell (`JobCtx.run_proc`).

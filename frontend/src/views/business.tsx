@@ -119,7 +119,7 @@ export function Leads() {
 
 export function Content() {
   const launch = useLaunch();
-  const [tab, setTab] = useState<"generar" | "briefs" | "lotes">("generar");
+  const [tab, setTab] = useState<"generar" | "medios" | "briefs" | "lotes">("generar");
   const brands = useRecords("brand");
   const briefs = useRecords("brief");
   const [f, setF] = useState<Record<string, any>>({ objective: "confianza", count: 5, format: "vertical 9:16" });
@@ -135,11 +135,12 @@ export function Content() {
   return (
     <div className="page">
       <Head title="Fábrica de contenido" sub="Brief → ángulos → hooks → guiones → shot list → variantes. Cada lote usa solo la biblioteca de su marca y los hechos comprobados que aportes; lo no respaldado se marca «por verificar»." />
-      <Tabs value={tab} onChange={setTab} tabs={[["generar", "Generar lote"], ["briefs", "Briefs"], ["lotes", "Lotes"]]} />
+      <Tabs value={tab} onChange={setTab} tabs={[["generar", "Generar lote"], ["medios", "Imágenes y video"], ["briefs", "Briefs"], ["lotes", "Lotes"]]} />
+      {tab === "medios" && <Media />}
       {tab === "generar" && <>
         <Needs caps={["extraccion"]} />
         <div className="grid grid--side">
-          <Panel title="Nuevo lote" note="Si no hay API de imagen o video, el lote es un paquete de producción con prompts utilizables, no videos terminados. Importa después los activos producidos en el Editor audiovisual.">
+          <Panel title="Nuevo lote" note="El lote es un paquete de producción con prompts utilizables. Para convertirlos en imágenes o clips, usa la pestaña «Imágenes y video». Importa después los activos producidos en el Editor audiovisual.">
             <form className="form" onSubmit={(e) => { e.preventDefault(); launch("content_batch", { ...f, count: Number(f.count), skill_paths: skills }, `Contenido: ${f.objective}`); }}>
               <FieldRow label="Partir de un brief"><Select value={f.brief_id} onChange={fromBrief} empty="Sin brief" options={(briefs.data || []).map((b) => [b.id, b.title])} /></FieldRow>
               <FieldRow label="Marca" hint={!brands.data?.length ? "Registra una marca en Proyectos, marcas y biblioteca." : undefined}><Select value={f.brand_id} onChange={set("brand_id")} empty="Sin marca" options={(brands.data || []).map((b) => [b.id, b.title])} /></FieldRow>
@@ -290,5 +291,49 @@ export function Clipping() {
       {tab === "clips" && <RecordsPanel kind="clip" columns={["campaign_id", "views_total", "views_eligible", "approved_usd", "paid_usd", "review_status"]} importable onChanged={() => setTick((n) => n + 1)}
         note="El ingreso estimado se calcula solo con vistas elegibles. «Aprobado» y «cobrado» son importes que introduces tú según lo que confirme y pague el organizador." />}
     </div>
+  );
+}
+
+function Media() {
+  const launch = useLaunch();
+  const { space } = useApp();
+  const files = useFiles();
+  const [f, setF] = useState<Record<string, any>>({ kind: "image", aspect: "9:16", count: 1, seconds: 4, prompt: "" });
+  const set = (k: string) => (v: any) => setF((x) => ({ ...x, [k]: v }));
+  const made = (files.data || []).filter((x) => x.meta?.media).slice(0, 24);
+  const video = f.kind === "video";
+  return (
+    <>
+      <Needs caps={[video ? "video" : "imagen"]} />
+      <div className="grid grid--side">
+        <Panel title={video ? "Nuevo video" : "Nueva imagen"} note="Generar consume saldo de tu proveedor: solo se lanza cuando tú lo pides, con el presupuesto que definiste en la conexión. El resultado llega como borrador para que lo revises antes de usarlo.">
+          <form className="form" onSubmit={(e) => { e.preventDefault(); launch("media_generate", { kind: f.kind, prompt: f.prompt, aspect: f.aspect, count: Number(f.count), seconds: Number(f.seconds) }, `${video ? "Video" : "Imagen"}: ${String(f.prompt).slice(0, 70)}`); }}>
+            <FieldRow label="Qué generar"><Select value={f.kind} onChange={(v) => setF((x) => ({ ...x, kind: v, aspect: v === "video" && x.aspect === "1:1" ? "9:16" : x.aspect }))} options={[["image", "Imagen"], ["video", "Video"]]} /></FieldRow>
+            <FieldRow label="Formato"><Select value={f.aspect} onChange={set("aspect")} options={[["9:16", "Vertical 9:16"], ["16:9", "Horizontal 16:9"], ...(video ? [] : [["1:1", "Cuadrado 1:1"]])] as [string, string][]} /></FieldRow>
+            {video ? <FieldRow label="Duración (segundos)" hint="Cada modelo admite ciertas duraciones; si la rechaza, prueba 4 u 8."><Text type="number" value={f.seconds} onChange={set("seconds")} /></FieldRow>
+              : <FieldRow label="Cuántas (1 a 4)"><Text type="number" value={f.count} onChange={set("count")} /></FieldRow>}
+            <FieldRow label="Descripción" wide hint="Sujeto, acción, lugar, luz, encuadre y estilo. Puedes pegar un prompt de un lote de contenido.">
+              <Text area rows={5} value={f.prompt} onChange={set("prompt")} placeholder={video ? "Plano medio, cámara lenta: un gato trepa por un rascador de sisal en un salón con luz de tarde…" : "Foto de producto: rascador de sisal sobre suelo de madera clara, luz natural lateral, fondo neutro…"} /></FieldRow>
+            <div className="field--wide row row--end"><Btn kind="primary" type="submit" disabled={String(f.prompt).trim().length < 5}>Generar</Btn></div>
+          </form>
+        </Panel>
+        <Panel title="Trabajos"><JobList types={["media_generate"]} limit={6} empty="Aún no has generado nada." /></Panel>
+      </div>
+      <Panel title="Generado en este espacio" note="Material generado por IA: revísalo entero antes de publicarlo y comprueba las condiciones de uso de tu proveedor.">
+        {!made.length ? <p className="muted">Lo que generes aparecerá aquí. También queda en Revisión y en Proyectos → Archivos.</p> : (
+          <div className="mediagrid">
+            {made.map((m) => {
+              const src = url(`/files/${m.id}/download`, { space: space.id, inline: true });
+              return (
+                <figure key={m.id}>
+                  {m.meta.media === "video" ? <video src={src} controls preload="metadata" /> : <img src={src} alt={m.meta.prompt || m.name} loading="lazy" />}
+                  <figcaption className="small wrap"><a href={url(`/files/${m.id}/download`, { space: space.id })}>{m.name}</a><span className="muted"> · {m.meta.connection}</span></figcaption>
+                </figure>
+              );
+            })}
+          </div>
+        )}
+      </Panel>
+    </>
   );
 }

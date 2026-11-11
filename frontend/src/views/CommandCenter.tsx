@@ -27,7 +27,7 @@ function Seal({ value, hue }: { value: number | null; hue: string }) {
 export function Business() {
   const { space, run, reload, boot, nav, doneTick } = useApp();
   const launch = useLaunch();
-  const [tab, setTab] = useState<"resumen" | "misiones" | "decisiones" | "alertas" | "agentes" | "manual">("resumen");
+  const [tab, setTab] = useState<"resumen" | "misiones" | "decisiones" | "alertas" | "horarios" | "agentes" | "manual">("resumen");
   const [tick, setTick] = useState(0);
   const [exec, setExec] = useState<Rec | null>(null);
   const [tool, setTool] = useState("opportunity_research");
@@ -56,7 +56,7 @@ export function Business() {
         <p className="page__sub">Tus cuatro negocios en un solo tablero: misiones por sección, avance verificado con evidencia, dinero real y agentes. Una misión solo cuenta como hecha cuando cumple su criterio de cierre y adjunta evidencia.</p></div>
         <Btn kind={paused ? "primary" : "amber"} onClick={() => setPaused(!paused)}>{paused ? "Reanudar agentes" : "Pausar todos los agentes"}</Btn></div>
       {paused && <div className="banner"><span><strong>Agentes en pausa.</strong> No se inicia ningún trabajo nuevo hasta que reanudes. Los avisos y la interfaz siguen funcionando.</span></div>}
-      <Tabs value={tab} onChange={setTab} tabs={[["resumen", "Resumen"], ["misiones", "Misiones"], ["decisiones", "Decisiones"], ["alertas", "Monitores y alertas"], ["agentes", "Agentes"], ["manual", "Manual e integraciones"]]} />
+      <Tabs value={tab} onChange={setTab} tabs={[["resumen", "Resumen"], ["misiones", "Misiones"], ["decisiones", "Decisiones"], ["alertas", "Monitores y alertas"], ["horarios", "Agentes con horario"], ["agentes", "Agentes"], ["manual", "Manual e integraciones"]]} />
       {s.error && <ErrorBox message={s.error} retry={s.reload} />}
       {tab === "resumen" && (!s.data ? <Skeleton /> : <>
         <div className="grid grid--2">
@@ -112,6 +112,9 @@ export function Business() {
           note="Cada monitor revisa datos reales con la frecuencia indicada, no repite un mismo hallazgo y avisa a tus canales del celular (máximo 12 avisos de monitores al día). Son reglas fijas, sin IA. Se detienen con «Pausar todos los agentes»." />
         <RecordsPanel key={tick} kind="alert" columns={["type", "detected", "notes"]} title="Alertas" />
       </>}
+      {tab === "horarios" && <RecordsPanel kind="schedule" columns={["order", "frequency", "hour", "last_run", "last_result"]} hideFields={["last_run", "last_result"]} defaults={{ frequency: "diario", hour: 9, notify: true }} onChanged={bump}
+        rowActions={(r, reloadRow) => <Btn small onClick={async () => { const o: any = await run(api("/schedules/run", { body: { space: space.id, id: r.id } })); if (o) { run(Promise.resolve(), o.error ? `No se pudo: ${o.respuesta}` : `Ejecutado: ${o.respuesta}`); reloadRow(); bump(); } }}>Ejecutar ahora</Btn>}
+        note="Cada agente lanza a su hora la orden que escribas, igual que si la dijeras en Comando: «Busca oportunidades en accesorios para mascotas», «Resume lo pendiente», «Genera contenido para la marca Nova». Funcionan mientras Jarvis esté abierto, respetan la pausa de agentes y los presupuestos, y te avisan al celular con el resultado. Pulsa «Ejecutar ahora» para probar la orden antes de dejarla sola." />}
       {tab === "agentes" && <>
         <Panel title="Agentes disponibles hoy" note="Los agentes son los trabajos reales de Jarvis. Se ejecutan en paralelo hasta el límite configurado (2 por defecto, video de uno en uno), con cola persistente, cancelación y reanudación tras reinicio.">
           <div className="tablewrap"><table><thead><tr><th>Agente</th><th>Qué hace de verdad</th><th>Necesita</th></tr></thead><tbody>

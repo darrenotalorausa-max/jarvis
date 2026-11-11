@@ -12,6 +12,9 @@ el modelo se elige del listado real de la cuenta y los precios los introduce el 
 | Claude (Anthropic) | Texto, JSON, visión* | API de Anthropic | Clave de API (SDK oficial `anthropic`) | `messages.create`, listado de modelos | Respuestas simuladas |
 | OpenAI | Texto, JSON, visión*, transcripción* | `https://api.openai.com/v1` | `Authorization: Bearer` | Igual que «compatible con OpenAI» | Respuestas simuladas |
 | Conector universal (`api`) | Acciones declarativas sobre cualquier API REST | (según plantilla) | Bearer, cabecera, parámetro, Basic u OAuth 2.0 (código + renovación) | Los definidos en cada plantilla de `connectors.PRESETS` | Servidor simulado; **ninguna plantilla probada con cuenta real** |
+| OpenAI (medios) | Imágenes, video | `https://api.openai.com/v1` | `Authorization: Bearer` | `POST /images/generations`; `POST /videos`, `GET /videos/{id}`, `GET /videos/{id}/content` | Respuestas simuladas |
+| Gemini (imágenes) | Imágenes | (la de Gemini) | `x-goog-api-key` | `POST /models/{modelo}:generateContent` con `responseModalities` | Sin prueba específica |
+| fal.ai | Imágenes, video | `https://queue.fal.run` | `Authorization: Key` | `POST /{modelo}`, `status_url`, `response_url`, descarga del archivo | Respuestas simuladas |
 | Brave Search API | Búsqueda | `https://api.search.brave.com` | `X-Subscription-Token` | `GET /res/v1/web/search` (`q`, `count`, `country`, `search_lang`, `freshness`) | Respuestas simuladas |
 | Tavily | Búsqueda | `https://api.tavily.com` | `Authorization: Bearer` | `POST /search` (`query`, `max_results`, `search_depth`, `time_range`) | Respuestas simuladas |
 | ElevenLabs | Voz | `https://api.elevenlabs.io` | `xi-api-key` | `GET /v2/voices`, `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128` | Sin llamada real |

@@ -8,7 +8,7 @@ Código subido a GitHub en la rama `claude/trusting-edison-s2ex3g`.
 Interfaz rediseñada (ver `docs/DESIGN.md`). Producto unificado funcionando en Linux: backend, worker, interfaz, lanzadores, pruebas y documentación.
 Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el código.
 
-Último bloque: Claude y ChatGPT por API, conector universal (`connectors.py`, `views/Apps.tsx`), monitores (`monitors.py`), usuarios con rol (`access.py`), importadores (`imports.py`), tutor y notas (`handlers/study.py`), texto bíblico (`scripture.py`), MCP (`mcp_server.py`), modo aplicación (`launch.py --app`, `scripts/windows/`) y Docker. 95 pruebas y recorrido en navegador en verde. HUD de Comando rediseñado sin tarjetas (`docs/DESIGN.md`).
+Último bloque: Claude y ChatGPT por API, conector universal (`connectors.py`, `views/Apps.tsx`), monitores (`monitors.py`), usuarios con rol (`access.py`), importadores (`imports.py`), tutor y notas (`handlers/study.py`), texto bíblico (`scripture.py`), MCP (`mcp_server.py`), modo aplicación (`launch.py --app`, `scripts/windows/`) y Docker. 100 pruebas y recorrido en navegador en verde. Añadido después: medios por API (`providers/media.py`), memoria (`memory.py`), horarios (`schedules.py`), aprobaciones por Telegram (`notify.py`) y manos libres (`views/Command.tsx`, `voice.ts`). HUD de Comando rediseñado sin tarjetas (`docs/DESIGN.md`).
 
 ## Para retomar (en orden de valor)
 
@@ -20,6 +20,7 @@ Detalle exacto en `docs/IMPLEMENTATION_STATUS.md`. Nada quedó a medias en el c�
 2. **Validar proveedores con claves reales**, uno por uno, desde Conexiones. Si un formato difiere, el arreglo está acotado a
    `backend/jarvis/providers/{llm,search,voice}.py`; dudas concretas listadas al final de `docs/PROVIDER_MATRIX.md`.
 2b. **Validar cada plantilla de Apps conectadas con una cuenta real** (`backend/jarvis/connectors.py`, `PRESETS`): rutas, versión de API y permisos; OAuth con Google. Instalar FFmpeg en la imagen de Docker en un servidor real y arrancar con `docker compose up` (la imagen ya se construyó y arrancó sin ese paso). Probar el servidor MCP con Claude Desktop.
+2c. **Probar con cuentas reales lo último añadido:** una imagen y un video (ajustar `media_params` por modelo), botones de Telegram, y manos libres con micrófono (sobre todo el modo de transcripción por servidor: umbral de volumen en `startHands`).
 3. **Evaluar prompts con un modelo real** (calidad de expedientes, propuestas, lotes): `backend/jarvis/handlers/*.py`,
    subir `prompt_version` al cambiarlos para no reutilizar caché.
 4. **Voz con micrófono real** en Chrome/Edge: `frontend/src/views/Command.tsx`.

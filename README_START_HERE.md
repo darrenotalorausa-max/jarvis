@@ -140,5 +140,6 @@ Pruebas automáticas (desarrollo): `backend` → `..\.venv\Scripts\python.exe -m
 - **Claude y ChatGPT** como modelos (Conexiones) y Jarvis como herramienta de tu asistente (MCP).
 - **Monitores** que vigilan y avisan al celular, **usuarios con rol**, **importación de Apple Health y de extractos bancarios**, **tutor** que convierte un archivo en ruta de estudio, **preguntas a tus notas** y **texto bíblico** que tú cargas.
 - **Servidor 24/7** opcional con Docker.
+- **Imágenes y video por API**, **memoria a largo plazo** («recuerda que…»), **agentes con horario**, **voz manos libres** («Jarvis, …») y **aprobar o rechazar desde Telegram**.
 
 Cada una tiene su guía en la Biblioteca. Lo que no se ha podido probar con cuentas reales está en `docs/IMPLEMENTATION_STATUS.md`.

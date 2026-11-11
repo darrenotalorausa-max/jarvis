@@ -3,6 +3,7 @@ import { api, ApiError } from "../api";
 import { useApp, useData } from "../store";
 import { Core, type CoreState, type DialItem } from "../components/Core";
 import { cue } from "../sound";
+import { extractCommand } from "../voice";
 import { Check, FieldRow, Select, Skeleton } from "../components/ui";
 
 const DIAL: DialItem[] = [
@@ -44,6 +45,14 @@ export function Command() {
   const heard = useRef("");
   const level = useRef(0);
   const meter = useRef<{ ctx: AudioContext; raf: number; own?: MediaStream } | null>(null);
+  // Manos libres: escucha continua que solo actúa tras la palabra «Jarvis».
+  const [hands, setHands] = useState(false);
+  const [armed, setArmed] = useState(false);
+  const handsRef = useRef(false);
+  const armedUntil = useRef(0);
+  const handsStop = useRef<(() => void) | null>(null);
+  const sendRef = useRef<(v: string, o?: "texto" | "voz") => void>(() => undefined);
+  const busyRef = useRef(false);
 
   // Medidor del nivel real del micrófono para la onda del núcleo. No graba ni guarda audio: solo calcula el volumen.
   async function startMeter(stream?: MediaStream) {
@@ -79,7 +88,8 @@ export function Command() {
   useEffect(() => { api<Msg[]>("/assistant/history", { query: { space: space.id } }).then(setMsgs).catch(() => setMsgs([])); }, [space.id]);
   // Solo se desplaza la conversación, nunca la página.
   useEffect(() => { const box = chatEnd.current?.parentElement; if (box) box.scrollTop = box.scrollHeight; }, [msgs.length]);
-  useEffect(() => () => { stopSpeaking(); stopMeter(); try { rec.current?.stop?.(); } catch { /* ya detenido */ } }, []);
+  useEffect(() => () => { stopSpeaking(); stopMeter(); stopHands(); try { rec.current?.stop?.(); } catch { /* ya detenido */ } }, []);
+  useEffect(() => { if (!armed) return; const t = setTimeout(() => setArmed(false), 8200); return () => clearTimeout(t); }, [armed]);
 
   const savePrefs = async (p: Partial<VoicePrefs>) => { await run(api("/settings", { method: "PATCH", body: { voice: { ...prefs, ...p } } })); reload(); };
   const setSpeak = (v: boolean) => { speakingRef.current = v; setSpeaking(v); };
@@ -134,9 +144,93 @@ export function Command() {
     }
   }
 
+  // ---- Manos libres. El micrófono queda abierto mientras esté activado y esta pantalla siga abierta; nada se envía como
+  // orden si no empieza por «Jarvis» (o llega justo después de decir «Jarvis» a solas).
+  function heardHands(transcript: string) {
+    const t = (transcript || "").trim();
+    if (!t || speakingRef.current || busyRef.current) return;
+    const { woke, command } = extractCommand(t);
+    if (woke && command) { armedUntil.current = 0; setArmed(false); sendRef.current(command, "voz"); }
+    else if (woke) { armedUntil.current = Date.now() + 8000; setArmed(true); cue("mic"); }
+    else if (Date.now() < armedUntil.current) { armedUntil.current = 0; setArmed(false); sendRef.current(t, "voz"); }
+  }
+  function stopHands() {
+    handsRef.current = false;
+    handsStop.current?.();
+    handsStop.current = null;
+    level.current = 0;
+    setHands(false);
+    setArmed(false);
+  }
+  async function startHands() {
+    if (handsRef.current) return;
+    stopSpeaking();
+    if (prefs.stt === "navegador" && SR) {
+      const r = new SR();
+      r.lang = "es-ES";
+      r.continuous = true;
+      r.interimResults = false;
+      r.onresult = (ev: any) => { for (let i = ev.resultIndex; i < ev.results.length; i++) if (ev.results[i].isFinal) heardHands(ev.results[i][0].transcript); };
+      r.onerror = (ev: any) => { if (["not-allowed", "service-not-allowed", "audio-capture"].includes(ev.error)) { notify(MIC_ERRORS[ev.error], "error"); stopHands(); } };
+      r.onend = () => { if (handsRef.current) { try { r.start(); } catch { /* ya en marcha */ } } };  // el navegador corta cada cierto tiempo: se reanuda
+      handsStop.current = () => { try { r.stop(); } catch { /* ya detenido */ } };
+      handsRef.current = true;
+      try { r.start(); setHands(true); cue("mic"); } catch { stopHands(); notify("No se pudo iniciar el micrófono. Sigue por texto.", "error"); }
+    } else if (prefs.stt === "servidor" && canRecord) {
+      let stream: MediaStream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); } catch { notify(MIC_ERRORS["not-allowed"], "error"); return; }
+      const ctx = new AudioContext();
+      const an = ctx.createAnalyser();
+      an.fftSize = 512;
+      ctx.createMediaStreamSource(stream).connect(an);
+      const buf = new Uint8Array(an.fftSize);
+      let mr: MediaRecorder | null = null, chunks: Blob[] = [], voiced = 0, silent = 0, started = 0, pending = false;
+      const flush = async (parts: Blob[], mime: string, ms: number) => {
+        if (ms < 500 || pending || !handsRef.current) return;  // demasiado corto para ser una orden
+        pending = true;
+        const form = new FormData();
+        form.set("space", space.id);
+        form.set("audio", new Blob(parts, { type: mime || "audio/webm" }), "orden.webm");
+        try { heardHands((await api<{ text: string }>("/voice/transcribe", { form })).text); }
+        catch (e) { notify(`Manos libres detenido: no se pudo transcribir (${(e as Error).message})`, "error"); stopHands(); }
+        pending = false;
+      };
+      const timer = setInterval(() => {
+        an.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (const v of buf) sum += ((v - 128) / 128) ** 2;
+        const rms = Math.sqrt(sum / buf.length);
+        level.current = rms;
+        const loud = rms > 0.035 && !speakingRef.current;
+        if (!mr) {
+          voiced = loud ? voiced + 1 : 0;
+          if (voiced > 2 && !pending) {
+            chunks = [];
+            const m = new MediaRecorder(stream);
+            const mine = chunks, t0 = performance.now();
+            m.ondataavailable = (e) => mine.push(e.data);
+            m.onstop = () => flush(mine, m.mimeType, performance.now() - t0);
+            m.start();
+            mr = m; started = t0; silent = 0;
+          }
+        } else {
+          silent = loud ? 0 : silent + 1;
+          if (silent > 16 || performance.now() - started > 12000) { const m = mr; mr = null; voiced = 0; m.stop(); }
+        }
+      }, 50);
+      handsStop.current = () => { clearInterval(timer); try { mr?.stop(); } catch { /* ya detenido */ } stream.getTracks().forEach((t) => t.stop()); ctx.close().catch(() => undefined); };
+      handsRef.current = true;
+      setHands(true);
+      cue("mic");
+    } else {
+      notify("Para manos libres elige antes un modo de entrada de voz en «Voz».", "error");
+      setShowVoice(true);
+    }
+  }
+
   // ---- Pulsar para hablar. El micrófono solo está abierto mientras se mantiene pulsado el botón.
   async function startListening() {
-    if (listening || prefs.stt === "ninguno") return;
+    if (listening || prefs.stt === "ninguno" || handsRef.current) return;
     stopSpeaking(); // la voz de Jarvis nunca debe convertirse en una orden
     heard.current = "";
     if (prefs.stt === "navegador" && SR) {
@@ -193,13 +287,15 @@ export function Command() {
     try { rec.current?.stop?.(); } catch { /* ya detenido */ }
   }
 
+  sendRef.current = send;
+  busyRef.current = busy;
   const runningJobs = jobs.filter((j) => j.status === "running");
   const running = runningJobs.length;
   const progress = running ? runningJobs.reduce((a, j) => a + (j.progress || 0), 0) / running : null;
   const p = overview.data?.pendientes;
   const awaiting = (p?.por_aprobar || 0) + jobs.filter((j) => j.status === "waiting_approval").length;
-  const state: CoreState = listening ? "listening" : speaking ? "speaking" : failed ? "error" : busy || running ? "processing" : awaiting ? "approval" : "idle";
-  const detail = listening ? undefined : failed ? failed.slice(0, 80) : busy ? "Interpretando tu orden" : running ? `${running} trabajo(s) en ejecución` : awaiting ? `${awaiting} decisión(es) pendiente(s)` : p?.trabajos_en_espera ? `Sin actividad; ${p.trabajos_en_espera} trabajo(s) en espera de configuración o cuota` : undefined;
+  const state: CoreState = listening || armed ? "listening" : speaking ? "speaking" : failed ? "error" : busy || running ? "processing" : awaiting ? "approval" : "idle";
+  const detail = listening ? undefined : armed ? "Te escucho: di la orden" : hands && !busy && !failed && !running ? "Escucha activa: di «Jarvis» y tu orden" : failed ? failed.slice(0, 80) : busy ? "Interpretando tu orden" : running ? `${running} trabajo(s) en ejecución` : awaiting ? `${awaiting} decisión(es) pendiente(s)` : p?.trabajos_en_espera ? `Sin actividad; ${p.trabajos_en_espera} trabajo(s) en espera de configuración o cuota` : undefined;
   const sttReady = prefs.stt === "navegador" ? !!SR : prefs.stt === "servidor" ? canRecord : false;
   const disp = overview.data?.disponibilidad || {};
 
@@ -251,8 +347,8 @@ export function Command() {
           <label className="sr" htmlFor="orden">Orden para Jarvis</label>
           <textarea id="orden" rows={1} value={text} placeholder="Dile algo a Jarvis" onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); submit(); } }} />
-          <button type="button" className="mic" aria-pressed={listening} aria-label={listening ? "Micrófono abierto: suelta para terminar" : "Mantén pulsado para hablar"} disabled={!sttReady || busy}
-            title={sttReady ? "Mantén pulsado para hablar" : "Voz no disponible: actívala en «Voz»"}
+          <button type="button" className="mic" aria-pressed={listening} aria-label={listening ? "Micrófono abierto: suelta para terminar" : "Mantén pulsado para hablar"} disabled={!sttReady || busy || hands}
+            title={hands ? "Manos libres activo: di «Jarvis» y tu orden" : sttReady ? "Mantén pulsado para hablar" : "Voz no disponible: actívala en «Voz»"}
             onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); startListening(); }} onPointerUp={stopListening} onPointerCancel={stopListening}
             onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) { e.preventDefault(); startListening(); } }} onKeyUp={(e) => { if (e.key === " " || e.key === "Enter") stopListening(); }}>
             <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
@@ -262,9 +358,10 @@ export function Command() {
           </button>
         </form>
         <div className="command__foot">
-          <span className={`micstate${listening ? " micstate--on" : ""}`}><i />{listening ? "Micrófono abierto" : "Micrófono cerrado"}</span>
+          <span className={`micstate${listening || hands ? " micstate--on" : ""}`}><i />{listening ? "Micrófono abierto" : hands ? "Micrófono abierto · manos libres" : "Micrófono cerrado"}</span>
           <span className="row">
             {speaking && <button className="hud__link" onClick={stopSpeaking}>Silenciar</button>}
+            <button className="hud__link" aria-pressed={hands} disabled={!sttReady} title={sttReady ? "Di «Jarvis» seguido de tu orden, sin tocar nada" : "Activa antes una entrada de voz en «Voz»"} onClick={() => (hands ? stopHands() : startHands())}>{hands ? "Desactivar manos libres" : "Manos libres"}</button>
             <button className="hud__link" aria-expanded={showVoice} onClick={() => setShowVoice(!showVoice)}>Voz</button>
             <button className="hud__link" onClick={async () => { await run(api("/assistant/history", { method: "DELETE", query: { space: space.id } }), "Conversación borrada"); setMsgs([]); }}>Borrar conversación</button>
           </span>
@@ -280,7 +377,7 @@ export function Command() {
               </FieldRow>
             </div>
             <Check checked={prefs.autoSend} onChange={(v) => savePrefs({ autoSend: v })}>Enviar la orden al soltar el micrófono (si no, la transcripción queda editable antes de enviar)</Check>
-            <p className="note">Jarvis no escucha de forma permanente ni guarda grabaciones: el micrófono solo se abre mientras mantienes pulsado el botón, y el audio temporal se borra tras transcribirlo.</p>
+            <p className="note">Por defecto el micrófono solo se abre mientras mantienes pulsado el botón. Con «Manos libres» queda abierto mientras lo tengas activado y esta pantalla siga abierta: Jarvis solo actúa cuando dices «Jarvis» y tu orden, pero para detectarlo todo lo que se oye pasa por el reconocimiento elegido arriba (el del navegador, o tu proveedor de transcripción, que cobra por uso). No se guardan grabaciones. Para que también responda en voz alta, activa «Respuesta por voz».</p>
           </div>
         )}
       </div>

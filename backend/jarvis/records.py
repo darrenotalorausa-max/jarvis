@@ -151,7 +151,7 @@ KINDS: dict[str, dict] = {
         F("every_hours", "Cada cuántas horas", "number"), F("url", "URL (solo para «sitio web»)", "url"), F("days", "Días de antelación (vencimientos)", "number"),
         F("hour", "Hora del resumen diario (0–23)", "number"), F("notify", "Avisar al celular", "bool"), F("last_run", "Última ejecución"), F("last_result", "Último resultado")]},
     "memory": {"label": "Recuerdo", "plural": "Memoria de Jarvis", "module": "proyectos", "statuses": ["activo"], "fields": [
-        F("body", "Qué debe recordar", "textarea", required=True),
+        F("body", "Detalle (si el título no basta)", "textarea"),
         F("category", "Tipo", "select", options=["preferencia", "negocio", "marca", "persona", "decision", "otro"]),
         F("use_in_jobs", "Usarlo también en los trabajos (contenido, propuestas, expedientes)", "bool"), F("source", "Origen")]},
     "schedule": {"label": "Agente con horario", "plural": "Agentes con horario", "module": "negocios", "statuses": ["activo", "pausado"], "free_merge": True, "fields": [

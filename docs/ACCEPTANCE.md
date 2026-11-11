@@ -12,7 +12,7 @@ hace llamadas externas ni gasta dinero.
 
 ## Resultado de la última ejecución (2026-11-10, Linux, Python 3.13, Node 22, FFmpeg 6.1)
 
-- `pytest`: **95 superadas, 0 fallidas** (≈ 25 s).
+- `pytest`: **100 superadas, 0 fallidas** (≈ 25 s).
 - Recorrido en navegador: **completado sin problemas** (sin errores de consola, sin respuestas 5xx, sin desbordamiento en móvil).
 - Instalación desde un clon limpio con `scripts/setup.sh` y arranque con `scripts/start.sh`: **correcta** (API responde y sirve la interfaz; Ctrl+C detiene API y worker).
 - Lanzadores de Windows: **no ejecutados**.
@@ -47,6 +47,11 @@ hace llamadas externas ni gasta dinero.
 | Monitores sin repetir hallazgos | `test_apps`; en navegador: paso «monitores» |
 | Importadores sin duplicados | `test_apps` (Apple Health, OFX); en navegador: paso «personal: extracto bancario…» |
 | Sin modelo permitido no se envían notas | En navegador: «preguntas a las notas sin IA» |
+| Memoria por espacio y en prompts | `test_extra::test_long_term_memory_is_per_space_and_reaches_prompts`; en navegador: paso «memoria…» |
+| Horarios: una vez, con pausa | `test_extra::test_schedules_run_orders_on_time_once_and_respect_pause` |
+| Medios: archivos, espera sin proveedor, descargas seguras | `test_extra::test_image_and_video_generation_save_files_and_need_a_provider`, `test_fal_queue_downloads_only_from_public_https` |
+| Aprobación remota exacta y de un solo uso | `test_extra::test_approve_and_reject_from_telegram_only_exact_and_once` |
+| Manos libres solo tras «Jarvis» | En navegador: paso «manos libres» |
 | CRUD personal | `test_core::test_personal_modules_crud_archive_export`; en navegador: paso «personal» |
 
 ## Comprobación visual (navegador real)
@@ -66,3 +71,4 @@ incorrecto tras el primer inicio y registro de manejadores del worker al ejecuta
 5. Cada app conectada con tu cuenta: «Probar» y una acción de lectura; OAuth de Google.
 6. `docker compose up -d --build` en tu servidor.
 7. Servidor MCP desde tu cliente (Claude Desktop u otro).
+8. Generar una imagen y un video con tu proveedor; manos libres con tu micrófono; aprobar desde tu Telegram.

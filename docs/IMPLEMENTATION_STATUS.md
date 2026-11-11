@@ -2,7 +2,7 @@
 
 Fecha: 2026-11-10 · Versión 0.1.0. Este documento distingue lo comprobado de lo que solo está escrito.
 
-**Cómo se comprobó:** 95 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
+**Cómo se comprobó:** 100 pruebas automáticas del backend (`pytest`, con FFmpeg real y proveedores simulados solo en las pruebas)
 y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una instalación limpia en Linux.
 **No se ha ejecutado nada en Windows ni contra proveedores o servicios reales** (no había credenciales ni acceso de red a ellos). Tampoco se pudo abrir la ventana de aplicación. Docker sí se construyó y arrancó, salvo el paso de FFmpeg (ver B).
 
@@ -44,6 +44,11 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Texto bíblico | Carga de una traducción aportada por el usuario (texto o JSON), pasaje por referencia y búsqueda; en navegador |
 | MCP y API externa | Servidor MCP por stdio (initialize, tools/list, tools/call) y órdenes con token rotatorio, limitados a herramientas internas de un espacio de negocio |
 | Servidor detrás de proxy | Con acceso en red, una petición reenviada por un proxy inverso o con `JARVIS_REQUIRE_LOGIN=1` (por defecto en Docker) exige sesión aunque llegue por loopback; antes entraba como propietario. Probado en pytest y en el contenedor |
+| Generación de imágenes y video | Trabajo `media_generate`: OpenAI (imágenes y video con sondeo), Gemini (imágenes) y fal.ai (cola), con respuestas simuladas; guarda archivos y crea entregable; sin proveedor espera configuración; descargas solo por https a direcciones públicas; en navegador: formulario y espera sin proveedor |
+| Memoria a largo plazo | «recuerda que…», «olvida…», «¿qué recuerdas?»; por espacio, sin duplicados; llega al prompt del asistente y, si se marca, al de los trabajos; nunca cruza espacios; en navegador |
+| Agentes con horario | Diario, semanal o por intervalo; ejecutan una orden del asistente; una vez por periodo, tope diario, respetan la pausa; «Ejecutar ahora»; en navegador |
+| Aprobar y rechazar desde Telegram | Botones y texto; solo el chat autorizado; un solo uso y caducidad; ligado a la versión del entregable o al hash de la petición; opción desactivada por defecto; con Telegram simulado |
+| Voz manos libres | Palabra de activación «Jarvis» con el reconocimiento del navegador (probado con un reconocedor simulado: ignora lo que no empieza por «Jarvis», ejecuta la orden, modo «Jarvis» a solas) |
 | Apagado desde el panel | `POST /api/shutdown` detiene API y worker cuando se inició con el lanzador |
 | Instalación Unix | `scripts/setup.sh` + `scripts/start.sh` desde un clon limpio (ver ACCEPTANCE.md) |
 
@@ -67,6 +72,9 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 | Sección Shopify | Validada estructuralmente; **no instalada en una tienda ni en un tema real** |
 | Todas las plantillas de Apps conectadas | Contrastadas el 2026-11-11 con la documentación oficial de versiones: Shopify pasa a `2026-10` y Meta a `v26.0` (la `v21.0` de anuncios había caducado); Notion `2022-06-28` sigue admitida. **Ninguna se ha probado con una cuenta real**: rutas, versiones de API y permisos pueden requerir ajuste |
 | OAuth con Google u otro proveedor real | Probado solo con un servidor de autorización simulado |
+| Generación real de imágenes y video | Formatos de petición según la documentación pública (OpenAI `/images/generations` y `/videos`, cola de fal.ai, `generateContent` de Gemini). **Ninguno probado con una cuenta real**; los parámetros por modelo pueden requerir «Parámetros extra» |
+| Manos libres con micrófono real | No hay micrófono en el entorno. El modo con transcripción por servidor (detección de voz por volumen) **no se ha ejecutado**; solo compila |
+| Botones de Telegram reales | Probado contra un Telegram simulado (`sendMessage` con `inline_keyboard`, `callback_query`, `answerCallbackQuery`) |
 | Claude y OpenAI reales | Sin clave ni red hacia ellos durante el desarrollo |
 | Ventana de aplicación (`--app`, pywebview) | Comprobado solo el respaldo: sin pywebview abre el navegador y el apagado funciona. **La ventana no se ha visto en ningún sistema.** El acceso directo de Windows (`scripts/windows/acceso_directo.ps1`) no se ha ejecutado |
 | Docker (`Dockerfile`, `docker-compose.yml`) | Imagen construida y contenedor arrancado en pruebas: interfaz, inicio de sesión obligatorio, API, worker y persistencia tras reinicio. **Sin comprobar:** la instalación de FFmpeg (`apt-get`), bloqueada por la red del entorno, y `docker compose` como tal (se usó `docker build` + `docker run`) |
@@ -103,13 +111,14 @@ y un recorrido en navegador real (Chromium, `frontend/e2e/smoke.cjs`) sobre una 
 
 ## E. No implementado
 
-- **Del superprompt DOOMSDAY:** importación del manual (falta el archivo), **sincronización entre una instalación local y otra en servidor** (son instalaciones separadas; se mueve con respaldo), conector de Google Ads (su API exige token de desarrollador), sincronización automática en segundo plano de los datos de las apps conectadas (las acciones se ejecutan a petición), agentes con memoria propia, aprobaciones desde Telegram, modo claro y calendario. **Sistema de plugins:** no existe un cargador de código de terceros; la extensión se hace con datos, no con código: acciones declarativas del conector universal, skills en la biblioteca, MCP y la API de órdenes.
+- **Del superprompt DOOMSDAY:** importación del manual (falta el archivo), **sincronización entre una instalación local y otra en servidor** (son instalaciones separadas; se mueve con respaldo), conector de Google Ads (su API exige token de desarrollador), sincronización automática en segundo plano de los datos de las apps conectadas (las acciones se ejecutan a petición), modo claro y calendario. La memoria es la que el dueño dicta («recuerda que…»): Jarvis no aprende ni guarda nada por su cuenta. **Sistema de plugins:** no existe un cargador de código de terceros; la extensión se hace con datos, no con código: acciones declarativas del conector universal, skills en la biblioteca, MCP y la API de órdenes.
 - **De los 20 módulos de vida:** sincronización en vivo con relojes o Health Connect (Apple Health se importa por archivo; el resto por CSV), pedidos a supermercados, escaneo de productos, alarmas, bloqueo de distracciones, tutor a partir de video, análisis del diario con IA, **texto bíblico y comentarios incluidos** (se carga la traducción que aporte el usuario; los comentarios van como notas), **conexión bancaria directa** (se importa el extracto OFX/QFX) y simulación de inversiones.
 
 - Envío de mensajes, publicación en redes, activación de campañas o cambios de presupuesto (excluido a propósito en esta versión).
 - Subida del paquete Shopify a un tema por API: solo exportación ZIP (la plantilla de Shopify en Apps conectadas lee datos y crea productos en borrador con aprobación). Tampoco un tema completo de tienda.
-- Generación de imágenes o video por API: se entregan prompts y paquete de producción.
+- Edición de imágenes o video existentes por IA, imagen a video y voces generadas dentro de los clips: solo texto a imagen y texto a video.
 - Exportación nativa a Premiere, Resolve u otros editores.
 - Agregación bancaria por API y conciliación contable.
-- Escucha permanente por palabra clave, clonación de voz.
+- Escucha permanente fuera de la pantalla de Comando (manos libres se activa a mano y se detiene al salir) y clonación de voz.
+- Aprobaciones por WhatsApp o ntfy (solo Telegram permite responder).
 - Sincronización entre equipos y cifrado HTTPS propio (en red o servidor hay que ponerlo detrás de VPN o proxy).

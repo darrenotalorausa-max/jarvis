@@ -59,7 +59,7 @@ export function Review() {
 
 export function Projects() {
   const { boot, space, run, reload, setSpace } = useApp();
-  const [tab, setTab] = useState<"proyectos" | "marcas" | "biblioteca" | "archivos" | "espacios">("proyectos");
+  const [tab, setTab] = useState<"proyectos" | "marcas" | "biblioteca" | "memoria" | "archivos" | "espacios">("proyectos");
   const brands = useRecords("brand");
   const [brand, setBrand] = useState("");
   const files = useFiles();
@@ -68,9 +68,11 @@ export function Projects() {
   return (
     <div className="page">
       <Head title="Proyectos, marcas y biblioteca" sub="Cada espacio mantiene separados sus proyectos, marcas, archivos y conocimiento. Nada de un espacio se usa en otro." />
-      <Tabs value={tab} onChange={setTab} tabs={[["proyectos", "Proyectos"], ["marcas", "Marcas"], ["biblioteca", "Biblioteca de marca"], ["archivos", "Archivos"], ["espacios", "Espacios"]]} />
+      <Tabs value={tab} onChange={setTab} tabs={[["proyectos", "Proyectos"], ["marcas", "Marcas"], ["biblioteca", "Biblioteca de marca"], ["memoria", "Memoria de Jarvis"], ["archivos", "Archivos"], ["espacios", "Espacios"]]} />
       {tab === "proyectos" && <RecordsPanel kind="project" columns={["type", "owner", "due_date"]} />}
       {tab === "marcas" && <RecordsPanel kind="brand" columns={["market", "language", "voice"]} onChanged={brands.reload} />}
+      {tab === "memoria" && <RecordsPanel kind="memory" columns={["body", "category", "use_in_jobs"]} defaults={{ category: "preferencia", use_in_jobs: true, source: "panel" }} quickAdd="Algo que Jarvis deba recordar siempre…"
+        note="Lo que guardes aquí acompaña a Jarvis en este espacio: lo tiene presente al interpretar tus órdenes y, si lo marcas, al preparar contenido, propuestas y expedientes. También puedes decir «recuerda que…», «olvida…» o «¿qué recuerdas?». Cada espacio tiene su propia memoria y solo llega a los modelos que ese espacio permite." />}
       {tab === "biblioteca" && (!brands.data?.length ? <Empty title="Primero registra una marca">La biblioteca (voz, pilares, ejemplos, historias reales, fuentes y permisos) pertenece a una marca concreta.</Empty> : <>
         <div className="row"><span className="muted small">Marca</span><div style={{ width: 260 }}><Select value={brand} onChange={setBrand} options={brands.data.map((b) => [b.id, b.title])} /></div></div>
         {brand && <RecordsPanel key={brand} kind="brand_asset" brandId={brand} columns={["type", "body", "permission"]} defaults={{ permission: "sin_confirmar", type: "ejemplo" }}

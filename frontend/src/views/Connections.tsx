@@ -6,7 +6,7 @@ import { Badge, Btn, Check, Empty, FieldRow, Modal, Panel, Select, Skeleton, Tex
 type Conn = Record<string, any>;
 type Meta = { providers: Record<string, any>; capabilities: Record<string, string>; spaces?: any[] };
 const GUIDES: Record<string, string> = {
-  gemini: "IA gratis en la nube con Gemini y Gemma", anthropic: "Conectar Claude y ChatGPT", openai: "Conectar Claude y ChatGPT", ollama: "IA local con Ollama", groq: "Groq (texto y transcripción)", tavily: "Búsqueda web (Tavily o Brave)", brave: "Búsqueda web (Tavily o Brave)",
+  gemini: "IA gratis en la nube con Gemini y Gemma", fal: "Generar imágenes y video", anthropic: "Conectar Claude y ChatGPT", openai: "Conectar Claude y ChatGPT", ollama: "IA local con Ollama", groq: "Groq (texto y transcripción)", tavily: "Búsqueda web (Tavily o Brave)", brave: "Búsqueda web (Tavily o Brave)",
   telegram: "Avisos y órdenes por Telegram", whatsapp: "Avisos por WhatsApp", ntfy: "Notificaciones push con ntfy", elevenlabs: "Voz con ElevenLabs",
 };
 
@@ -94,6 +94,7 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
           </FieldRow>
           {provider === "telegram" && <FieldRow group label="Órdenes desde el celular" wide hint="Solo se obedece a tu chat ID y solo con herramientas internas (resumir, crear tareas, lanzar investigaciones, pausar agentes).">
             <div className="stack">
+              <Check checked={!!f.options?.approvals} onChange={opt("approvals")}>Aprobar o rechazar desde este chat (recibirás el resumen del entregable o la petición exacta de la acción, con botones)</Check>
               <Check checked={!!f.options?.commands} onChange={opt("commands")}>Aceptar órdenes desde este chat</Check>
               {f.options?.commands && <Select value={f.options?.space_id} onChange={opt("space_id")} empty="Elige el espacio sobre el que actúan" options={(meta.spaces || []).filter((x: any) => !x.archived).map((x: any) => [x.id, x.name])} />}
             </div>
@@ -103,6 +104,12 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
           <div className="row">{allCaps.map((c) => <Check key={c} checked={caps.includes(c)} onChange={(v) => set("capabilities")(v ? [...caps, c] : caps.filter((x) => x !== c))}>{meta.capabilities[c] || c}</Check>)}</div>
         </FieldRow>}
         {caps.includes("transcripcion") && provider !== "whisper_local" && <FieldRow label="Modelo de transcripción" hint="ID exacto del modelo de audio en tu cuenta."><Text value={f.options?.transcription_model} onChange={opt("transcription_model")} /></FieldRow>}
+        {caps.includes("imagen") && <FieldRow label="Modelo de imágenes" hint="ID exacto del modelo de generación de imágenes en tu cuenta (míralo en la documentación del proveedor).">
+          <Text value={f.options?.image_model} onChange={opt("image_model")} /></FieldRow>}
+        {caps.includes("video") && <FieldRow label="Modelo de video" hint="ID exacto del modelo de generación de video.">
+          <Text value={f.options?.video_model} onChange={opt("video_model")} /></FieldRow>}
+        {(caps.includes("imagen") || caps.includes("video")) && <FieldRow label="Parámetros extra (JSON, opcional)" wide hint="Se añaden tal cual a cada petición de generación; úsalo para opciones propias del modelo, por ejemplo {&quot;quality&quot;: &quot;high&quot;}.">
+          <Text value={typeof f.options?.media_params === "string" ? f.options.media_params : f.options?.media_params ? JSON.stringify(f.options.media_params) : ""} onChange={opt("media_params")} /></FieldRow>}
         {provider !== "webhook" && !isNotify && <>
           <FieldRow label="Tiempo máximo (s)"><Text type="number" value={f.timeout_s} onChange={set("timeout_s")} /></FieldRow>
           {isLlm && <FieldRow label="Máximo de tokens de salida"><Text type="number" value={f.max_tokens} onChange={set("max_tokens")} /></FieldRow>}
@@ -117,9 +124,10 @@ export function ConnectionForm({ meta, conn, onClose, onSaved, notify, only }: {
           <div className="stack">
             <Check checked={!!f.is_paid} onChange={set("is_paid")}>Esta conexión factura por uso (de pago)</Check>
             {f.is_paid && <div className="form">
+              {isLlm && (caps.includes("imagen") || caps.includes("video")) && <FieldRow label="Precio por imagen o por segundo de video (USD)"><Text type="number" value={f.price_unit} onChange={set("price_unit")} /></FieldRow>}
               {isLlm ? <><FieldRow label="Precio entrada (USD por millón de tokens)"><Text type="number" value={f.price_in} onChange={set("price_in")} /></FieldRow>
                 <FieldRow label="Precio salida (USD por millón de tokens)"><Text type="number" value={f.price_out} onChange={set("price_out")} /></FieldRow></>
-                : <FieldRow label={provider === "elevenlabs" ? "Precio por carácter (USD)" : "Precio por consulta o minuto (USD)"}><Text type="number" value={f.price_unit} onChange={set("price_unit")} /></FieldRow>}
+                : <FieldRow label={provider === "elevenlabs" ? "Precio por carácter (USD)" : "Precio por consulta o minuto (USD)"} hint={caps.includes("imagen") || caps.includes("video") ? "Para medios: precio por imagen o por segundo de video." : undefined}><Text type="number" value={f.price_unit} onChange={set("price_unit")} /></FieldRow>}
               <FieldRow label="Presupuesto mensual (USD)" hint="Obligatorio para usar una conexión de pago."><Text type="number" value={f.monthly_budget_usd} onChange={set("monthly_budget_usd")} /></FieldRow>
             </div>}
             <span className="field__hint">Los precios los introduces tú según la tarifa vigente de tu proveedor; Jarvis no los conoce ni puede verificar tu facturación. Una suscripción de chat no equivale a acceso por API.</span>
